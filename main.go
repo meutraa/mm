@@ -16,12 +16,13 @@ type Login struct {
 	Password string `json:"password"`
 }
 
-type LoginResponse struct {
-	ErrorCode    string `json:"errcode"`
-	Error        string `json:"error"`
+var session Session
+
+type Session struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	DeviceId     string `json:"device_id"`
+	TokenId      int
 }
 
 func main() {
@@ -31,41 +32,46 @@ func main() {
 	flag.StringVar(&pass, "pass", "", "password")
 	flag.Parse()
 
-	session := login(host, user, pass)
+	session = login(host, user, pass)
 	fmt.Printf("%s\n", session.AccessToken)
+	sync(host)
+
+	logout(host)
 }
 
-func login(host string, user string, pass string) LoginResponse {
-	login := Login{"m.login.password", user, pass}
-	b, err := json.Marshal(login)
-	buf := bytes.NewBuffer(b)
-
-	res, err := http.Post(host+"/_matrix/client/r0/login", "application/json", buf)
-	if err != nil {
-		log.Fatalf("Login POST request to server failed: %s", err)
-	}
-	switch res.StatusCode {
-	case 200:
-		fmt.Println("The user has been authenticated")
-	case 400:
-		log.Fatalf("Part of the request was invalid. For example, the login type may not be recognised.")
-	case 403:
-		log.Fatalf("The login attempt failed. For example, the password may have been incorrect.")
-	case 429:
-		log.Fatalf("This request was rate-limited.")
-	default:
-		log.Fatalf("HTTP response: %s", http.StatusText(res.StatusCode))
-	}
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Fatalf("Login POST response could not read Body: %s", err)
-	}
+func sync(host string) {
+	res, _ := http.Get(host + "/_matrix/client/r0/sync" + "?access_token=" + session.AccessToken)
+	body, _ := ioutil.ReadAll(res.Body)
+	fmt.Printf("%s\n", body)
 	res.Body.Close()
+}
 
-	var loginRes LoginResponse
-	err = json.Unmarshal(body, &loginRes)
-	if err != nil {
-		log.Fatalf("Login POST response body could not unmarshal: %s", err)
+func logout(host string) {
+	res, _ := http.Post(host+"/_matrix/client/r0/logout"+"?access_token="+session.AccessToken, "application/json", nil)
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		body, _ := ioutil.ReadAll(res.Body)
+		fmt.Printf("Logout unsuccessful: %s\n", body)
 	}
-	return loginRes
+}
+
+func login(host string, user string, pass string) Session {
+	b, _ := json.Marshal(Login{"m.login.password", user, pass})
+
+	res, err := http.Post(host+"/_matrix/client/r0/login", "application/json", bytes.NewBuffer(b))
+	if err != nil || res.StatusCode != 200 {
+		log.Fatalf("Login request to server failed: %s, %s\n", err, http.StatusText(res.StatusCode))
+	}
+
+	fmt.Println("The user has been authenticated")
+
+	body, _ := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+
+	var ses Session
+	err = json.Unmarshal(body, &ses)
+	if err != nil || ses.AccessToken == "" {
+		log.Fatalf("Login response could not be parsed: %s,%s\n", err, body)
+	}
+	return ses
 }
