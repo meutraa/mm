@@ -127,10 +127,10 @@ func logout() {
 func login() {
 	res, err := http.Post(host+"/_matrix/client/r0/login", "application/json",
 		bytes.NewBuffer([]byte("{\"type\":\"m.login.password\",\"user\":\""+username+"\",\"password\":\""+pass+"\"}")))
+	defer res.Body.Close()
 	if err != nil || res.StatusCode != 200 {
 		log.Fatalf("Login failed: %s, %s\n", err, http.StatusText(res.StatusCode))
 	}
-	defer res.Body.Close()
 
 	if json.NewDecoder(res.Body).Decode(&sesh) != nil || sesh.AccessToken == "" {
 		log.Fatalf("Login response not decoded: %s,%s\n", err, res.Body)

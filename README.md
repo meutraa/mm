@@ -1,7 +1,21 @@
 This file represents the current functionality, which is not yet complete.
 
-##### Directory Structure
-Symbolic links are created for each room with the name of the room, or the participant of the private chat.
+#### Notes
+I am not here to interperate trailing slashes and such so:
+* If your homeserver/username/password contains funky characters, enclose it
+	in quotation marks. For example, `-p "\"ha\?!$t"`. Remember to escape
+	any quotation marks with a backslash as in the example.
+* -s <host> must include a protocol (http:// or https://) and have no trailing
+  slash. If the server includes a port, use server.name:port. For example,
+	`-s https://matrix.org`
+* -d <dir> will create that directory structure. In `-d $HOME/chat/matrix`, all
+	directories in this path will be created if they do not exist, and
+	servers are placed in the matrix folder. Do not include a trailing
+	slash.
+
+#### Directory Structure
+Symbolic links are created for each room with the name of the room, or the
+participant of the private chat.
 ```
 mm			(-d <dir>)
 └── server.org		(-s <host>)
@@ -15,7 +29,7 @@ mm			(-d <dir>)
             └── message2
 ```
 
-##### Usage
+#### Usage
 Inside a room directory
 ```
 List messages:
