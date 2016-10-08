@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/user"
+	"strconv"
 	"time"
 )
 
@@ -103,10 +104,13 @@ func sync() {
 			}
 		}
 		os.Symlink(hostPath+k, hostPath+name)
-		fmt.Printf("%s : %s\n", k, name)
 		for _, w := range v.Timeline.Events {
-			tm := time.Unix(int64(w.Timestamp/1000), 0)
-			fmt.Println("    ", tm.Format("Jan _2 15:04"), w.Sender, ": ", w.Content.Body)
+			tm := time.Unix(int64(w.Timestamp/1000), int64(1000*(w.Timestamp%1000)))
+			os.Mkdir(hostPath+k+"/"+w.Sender, os.ModeDir|os.ModePerm)
+			mtime := strconv.Itoa(w.Timestamp)
+			file := hostPath + k + "/" + w.Sender + "/" + mtime
+			ioutil.WriteFile(file, []byte(w.Content.Body+"\n"), 0644)
+			os.Chtimes(file, tm, tm)
 		}
 	}
 }
