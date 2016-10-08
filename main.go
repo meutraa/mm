@@ -47,8 +47,9 @@ type event struct {
 }
 
 type content struct {
-	Name string `json:"name"`
-	Body string `json:"body"`
+	Name        string `json:"name"`
+	Body        string `json:"body"`
+	MessageType string `json:"msgtype"`
 }
 
 type session struct {
@@ -58,10 +59,21 @@ type session struct {
 	UserId       string `json:"user_id"`
 	DeviceId     string `json:"device_id"`
 	CurrentBatch string
+	TxnId        int64
 }
 
 func apistr(str string) string {
 	return host + "/_matrix/client/r0/" + str + "access_token=" + sesh.AccessToken
+}
+
+func sendMessage(roomId string, message string) {
+	b, _ := json.Marshal(content{"", message, "m.text"})
+	var client http.Client
+	req, _ := http.NewRequest("PUT", apistr("rooms/"+roomId+
+		"/send/m.room.message/"+strconv.FormatInt(sesh.TxnId, 10)+"?"),
+		bytes.NewBuffer(b))
+	sesh.TxnId += 1
+	client.Do(req)
 }
 
 func main() {
@@ -78,6 +90,7 @@ func main() {
 	}
 
 	login()
+	sesh.TxnId = time.Now().UnixNano()
 	for {
 		sync()
 		time.Sleep(5 * time.Second)
@@ -104,6 +117,8 @@ func sync() {
 	for k, v := range d.Rooms.Join {
 		hostPath := path + "/" + sesh.Homeserver + "/"
 		os.MkdirAll(hostPath+k, os.ModeDir|os.ModePerm)
+		os.Create(hostPath + k + "/in")
+		os.Chmod(hostPath+k+"/in", os.ModeNamedPipe|0600)
 		var name string
 		for _, w := range v.State.Events {
 			if w.Type == "m.room.name" {
