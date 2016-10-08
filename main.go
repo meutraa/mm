@@ -57,6 +57,7 @@ type session struct {
 	Homeserver   string `json:"home_server"`
 	UserId       string `json:"user_id"`
 	DeviceId     string `json:"device_id"`
+	CurrentBatch string
 }
 
 func apistr(str string) string {
@@ -77,18 +78,28 @@ func main() {
 	}
 
 	login()
-	sync()
+	for {
+		sync()
+		time.Sleep(5 * time.Second)
+	}
 	logout()
 }
 
 func sync() {
-	res, _ := http.Get(apistr("sync?"))
+	var post string
+	if sesh.CurrentBatch == "" {
+		post = apistr("sync?")
+	} else {
+		post = apistr("sync?since=" + sesh.CurrentBatch + "&")
+	}
+	res, _ := http.Get(post)
 	defer res.Body.Close()
 
 	d := data{}
 	if json.NewDecoder(res.Body).Decode(&d) != nil {
 		fmt.Println("Unable to parse data")
 	}
+	sesh.CurrentBatch = d.NextBatch
 
 	for k, v := range d.Rooms.Join {
 		hostPath := path + "/" + sesh.Homeserver + "/"
