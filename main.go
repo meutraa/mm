@@ -8,10 +8,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/user"
 )
 
 var sesh session
-var host, user, pass string
+var host, username, pass, path string
 
 type data struct {
 	NextBatch string `json:"next_batch"`
@@ -49,6 +51,7 @@ type content struct {
 type session struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	Homeserver   string `json:"home_server"`
 	UserId       string `json:"user_id"`
 	DeviceId     string `json:"device_id"`
 }
@@ -58,10 +61,16 @@ func apistr(str string) string {
 }
 
 func main() {
+	usr, _ := user.Current()
 	flag.StringVar(&host, "host", "", "matrix homeserver")
-	flag.StringVar(&user, "user", "", "username")
+	flag.StringVar(&username, "user", "", "username")
 	flag.StringVar(&pass, "pass", "", "password")
+	flag.StringVar(&path, "path", usr.HomeDir+"/mm", "path")
 	flag.Parse()
+
+	if host == "" || username == "" || pass == "" {
+		log.Fatalln("Usage: mm -host=https://server.org -user=bob -pass=1234 [-path=/home/bob/mm]")
+	}
 
 	login()
 	sync()
@@ -79,17 +88,19 @@ func sync() {
 
 	for k, v := range d.Rooms.Join {
 		fmt.Printf("%s : ", k)
+		hostPath := path + "/" + sesh.Homeserver + "/"
+		os.MkdirAll(hostPath+k, os.ModeDir|os.ModePerm)
 		var name string
 		for _, w := range v.State.Events {
 			if w.Type == "m.room.name" {
 				name = w.Content.Name
+				break
 			} else if w.Type == "m.room.member" && w.Sender != sesh.UserId {
 				name = w.Sender
-			}
-			if name != "" {
 				break
 			}
 		}
+		os.Symlink(hostPath+k, hostPath+name)
 		fmt.Printf("%s\n", name)
 	}
 }
@@ -105,7 +116,7 @@ func logout() {
 
 func login() {
 	res, err := http.Post(host+"/_matrix/client/r0/login", "application/json",
-		bytes.NewBuffer([]byte("{\"type\":\"m.login.password\",\"user\":\""+user+"\",\"password\":\""+pass+"\"}")))
+		bytes.NewBuffer([]byte("{\"type\":\"m.login.password\",\"user\":\""+username+"\",\"password\":\""+pass+"\"}")))
 	if err != nil || res.StatusCode != 200 {
 		log.Fatalf("Login failed: %s, %s\n", err, http.StatusText(res.StatusCode))
 	}
