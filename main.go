@@ -87,7 +87,6 @@ func sync() {
 	}
 
 	for k, v := range d.Rooms.Join {
-		fmt.Printf("%s : ", k)
 		hostPath := path + "/" + sesh.Homeserver + "/"
 		os.MkdirAll(hostPath+k, os.ModeDir|os.ModePerm)
 		var name string
@@ -101,7 +100,10 @@ func sync() {
 			}
 		}
 		os.Symlink(hostPath+k, hostPath+name)
-		fmt.Printf("%s\n", name)
+		fmt.Printf("%s : %s\n", k, name)
+		for _, w := range v.Timeline.Events {
+			fmt.Println("    ", w.Sender, ": ", w.Content.Body)
+		}
 	}
 }
 
