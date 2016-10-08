@@ -73,7 +73,11 @@ func sendMessage(roomId string, message string) {
 		"/send/m.room.message/"+strconv.FormatInt(sesh.TxnId, 10)+"?"),
 		bytes.NewBuffer(b))
 	sesh.TxnId += 1
-	client.Do(req)
+	res, err := client.Do(req)
+	body := check(res, err)
+	if len(body) == 0 {
+		fmt.Println("Unable to send message:", roomId, ":", message)
+	}
 }
 
 func main() {
@@ -91,6 +95,7 @@ func main() {
 
 	login()
 	sesh.TxnId = time.Now().UnixNano()
+	path += "/" + sesh.Homeserver + "/"
 	for {
 		sync()
 		time.Sleep(5 * time.Second)
@@ -99,66 +104,80 @@ func main() {
 }
 
 func sync() {
-	var post string
+	var res *http.Response
+	var err error
 	if sesh.CurrentBatch == "" {
-		post = apistr("sync?")
+		res, err = http.Get(apistr("sync?"))
 	} else {
-		post = apistr("sync?since=" + sesh.CurrentBatch + "&")
+		res, err = http.Get(apistr("sync?since=" + sesh.CurrentBatch + "&"))
 	}
-	res, _ := http.Get(post)
-	defer res.Body.Close()
+	body := check(res, err)
+	if len(body) == 0 {
+		fmt.Println("Unable to sync data")
+		return
+	}
 
 	d := data{}
-	if json.NewDecoder(res.Body).Decode(&d) != nil {
-		fmt.Println("Unable to parse data")
+	if json.Unmarshal(body, &d) != nil {
+		fmt.Println("Unable to parse data:", body)
+		return
 	}
 	sesh.CurrentBatch = d.NextBatch
 
-	for k, v := range d.Rooms.Join {
-		hostPath := path + "/" + sesh.Homeserver + "/"
-		os.MkdirAll(hostPath+k, os.ModeDir|os.ModePerm)
-		os.Create(hostPath + k + "/in")
-		os.Chmod(hostPath+k+"/in", os.ModeNamedPipe|0600)
-		var name string
-		for _, w := range v.State.Events {
-			if w.Type == "m.room.name" {
-				name = w.Content.Name
+	for id, room := range d.Rooms.Join {
+		os.MkdirAll(path+id, os.ModeDir|os.ModePerm)
+		os.Create(path + id + "/in")
+		os.Chmod(path+id+"/in", os.ModeNamedPipe|0600)
+		/* Is there a better way to get the room name/member? */
+		for _, ev := range room.State.Events {
+			if ev.Type == "m.room.name" {
+				os.Symlink(path+id, path+ev.Content.Name)
 				break
-			} else if w.Type == "m.room.member" && w.Sender != sesh.UserId {
-				name = w.Sender
+			}
+			if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
+				os.Symlink(path+id, path+ev.Sender)
 				break
 			}
 		}
-		os.Symlink(hostPath+k, hostPath+name)
-		for _, w := range v.Timeline.Events {
-			tm := time.Unix(int64(w.Timestamp/1000), int64(1000*(w.Timestamp%1000)))
-			os.Mkdir(hostPath+k+"/"+w.Sender, os.ModeDir|os.ModePerm)
-			mtime := strconv.Itoa(w.Timestamp)
-			file := hostPath + k + "/" + w.Sender + "/" + mtime
-			ioutil.WriteFile(file, []byte(w.Content.Body+"\n"), 0644)
+		for _, ev := range room.Timeline.Events {
+			tm := time.Unix(int64(ev.Timestamp/1000), int64(1000*(ev.Timestamp%1000)))
+			os.Mkdir(path+id+"/"+ev.Sender, os.ModeDir|os.ModePerm)
+			mtime := strconv.Itoa(ev.Timestamp)
+			file := path + id + "/" + ev.Sender + "/" + mtime
+			ioutil.WriteFile(file, []byte(ev.Content.Body+"\n"), 0644)
 			os.Chtimes(file, tm, tm)
 		}
 	}
 }
 
-func logout() {
-	res, _ := http.Post(apistr("logout?"), "application/json", nil)
+func check(res *http.Response, err error) []byte {
 	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(res.Body)
-		fmt.Printf("Logout unsuccessful: %s\n", body)
+	body, err2 := ioutil.ReadAll(res.Body)
+	if err != nil || res.StatusCode != 200 {
+		fmt.Println(err, res.StatusCode, http.StatusText(res.StatusCode))
+		if err2 == nil {
+			fmt.Printf("%s\n", body)
+		}
+		return []byte("")
 	}
+	return body
+}
+
+func logout() {
+	res, err := http.Post(apistr("logout?"), "application/json", nil)
+	check(res, err)
 }
 
 func login() {
 	res, err := http.Post(host+"/_matrix/client/r0/login", "application/json",
 		bytes.NewBuffer([]byte("{\"type\":\"m.login.password\",\"user\":\""+username+"\",\"password\":\""+pass+"\"}")))
-	defer res.Body.Close()
-	if err != nil || res.StatusCode != 200 {
-		log.Fatalf("Login failed: %s, %s\n", err, http.StatusText(res.StatusCode))
-	}
 
-	if json.NewDecoder(res.Body).Decode(&sesh) != nil || sesh.AccessToken == "" {
-		log.Fatalf("Login response not decoded: %s,%s\n", err, res.Body)
+	body := check(res, err)
+	if len(body) == 0 {
+		log.Fatalln("Login failed")
+	}
+	err = json.Unmarshal(body, &sesh)
+	if err != nil || sesh.AccessToken == "" {
+		log.Fatalf("Login response not decoded: %s, %s\n", err, body)
 	}
 }
