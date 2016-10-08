@@ -30,6 +30,8 @@ mm			(-d <dir>)
 ```
 
 #### Usage
+Some commands that could prove useful. All of these print newest last.
+
 Inside a room directory
 ```
 List messages:
@@ -41,3 +43,14 @@ $ cat `ls -tr */*`	(without filenames)
 $ tail */*		(with filenames)
 ```
 
+Inside a server directory
+```
+List all messages:
+cat `find -L -type f | grep -v ! | sort -t '/' -k 4,4`
+cat `ls -rt1 \!*/*/*`
+
+List last 10 messages with headers:
+tail `find -L -type f | grep -v ! | sort -t '/' -k 4,4 | tail -n 10`
+tail `ls -rt1 */*/* | grep -v '!' | tail -n 10`
+
+```
