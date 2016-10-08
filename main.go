@@ -41,15 +41,22 @@ type timeline struct {
 
 type event struct {
 	Timestamp int     `json:"origin_server_ts"`
+	EventId   string  `json:"event_id"`
 	Type      string  `json:"type"`
 	Content   content `json:"content"`
 	Sender    string  `json:"sender"`
 }
 
+type message struct {
+	Body string `json:"body"`
+	Type string `json:"msgtype"`
+}
+
 type content struct {
-	Name        string `json:"name"`
-	Body        string `json:"body"`
-	MessageType string `json:"msgtype"`
+	message
+	Name   string `json:"name"`
+	Url    string `json:"url"`
+	GeoUri string `json:"geo_uri"`
 }
 
 type session struct {
@@ -66,8 +73,8 @@ func apistr(str string) string {
 	return host + "/_matrix/client/r0/" + str + "access_token=" + sesh.AccessToken
 }
 
-func sendMessage(roomId string, message string) {
-	b, _ := json.Marshal(content{"", message, "m.text"})
+func sendMessage(roomId string, text string) {
+	b, _ := json.Marshal(message{text, "m.text"})
 	var client http.Client
 	req, _ := http.NewRequest("PUT", apistr("rooms/"+roomId+
 		"/send/m.room.message/"+strconv.FormatInt(sesh.TxnId, 10)+"?"),
@@ -76,7 +83,7 @@ func sendMessage(roomId string, message string) {
 	res, err := client.Do(req)
 	body := check(res, err)
 	if len(body) == 0 {
-		fmt.Println("Unable to send message:", roomId, ":", message)
+		fmt.Println("Unable to send message:", roomId, ":", text)
 	}
 }
 
@@ -140,12 +147,24 @@ func sync() {
 			}
 		}
 		for _, ev := range room.Timeline.Events {
+			if ev.Type != "m.room.message" {
+				continue
+			}
 			tm := time.Unix(int64(ev.Timestamp/1000), int64(1000*(ev.Timestamp%1000)))
 			os.Mkdir(path+id+"/"+ev.Sender, os.ModeDir|os.ModePerm)
-			mtime := strconv.Itoa(ev.Timestamp)
-			file := path + id + "/" + ev.Sender + "/" + mtime
-			ioutil.WriteFile(file, []byte(ev.Content.Body+"\n"), 0644)
+			file := path + id + "/" + ev.Sender + "/" + strconv.Itoa(ev.Timestamp)
+			var content string
+			switch ev.Content.Type {
+			case "m.image", "m.file", "m.video", "m.audio":
+				content = ev.Content.Body + ": " + ev.Content.Url
+			case "m.location":
+				content = ev.Content.Body + ": " + ev.Content.GeoUri
+			default:
+				content = ev.Content.Body
+			}
+			ioutil.WriteFile(file, []byte(content+"\n"), 0644)
 			os.Chtimes(file, tm, tm)
+			/* If this is the newest event, sent ev.EventId in a receipt. */
 		}
 	}
 }
