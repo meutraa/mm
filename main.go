@@ -64,14 +64,15 @@ func apistr(str string) string {
 
 func main() {
 	usr, _ := user.Current()
-	flag.StringVar(&host, "host", "", "matrix homeserver")
-	flag.StringVar(&username, "user", "", "username")
-	flag.StringVar(&pass, "pass", "", "password")
-	flag.StringVar(&path, "path", usr.HomeDir+"/mm", "path")
+	flag.StringVar(&host, "s", "", "homeserver url <https://matrix.org>")
+	flag.StringVar(&username, "u", "", "not full qualified username <bob>")
+	flag.StringVar(&pass, "p", "", "password <pass1234>")
+	flag.StringVar(&path, "d", usr.HomeDir+"/mm", "directory path")
 	flag.Parse()
 
 	if host == "" || username == "" || pass == "" {
-		log.Fatalln("Usage: mm -host=https://server.org -user=bob -pass=1234 [-path=/home/bob/mm]")
+		flag.PrintDefaults()
+		return
 	}
 
 	login()
@@ -128,6 +129,6 @@ func login() {
 	defer res.Body.Close()
 
 	if json.NewDecoder(res.Body).Decode(&sesh) != nil || sesh.AccessToken == "" {
-		log.Fatalf("Login response could not be parsed: %s,%s\n", err, res.Body)
+		log.Fatalf("Login response not decoded: %s,%s\n", err, res.Body)
 	}
 }
