@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/user"
+	"time"
 )
 
 var sesh session
@@ -38,9 +39,10 @@ type timeline struct {
 }
 
 type event struct {
-	Type    string  `json:"type"`
-	Content content `json:"content"`
-	Sender  string  `json:"sender"`
+	Timestamp int     `json:"origin_server_ts"`
+	Type      string  `json:"type"`
+	Content   content `json:"content"`
+	Sender    string  `json:"sender"`
 }
 
 type content struct {
@@ -102,7 +104,8 @@ func sync() {
 		os.Symlink(hostPath+k, hostPath+name)
 		fmt.Printf("%s : %s\n", k, name)
 		for _, w := range v.Timeline.Events {
-			fmt.Println("    ", w.Sender, ": ", w.Content.Body)
+			tm := time.Unix(int64(w.Timestamp/1000), 0)
+			fmt.Println("    ", tm.Format("Jan _2 15:04"), w.Sender, ": ", w.Content.Body)
 		}
 	}
 }
