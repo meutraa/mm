@@ -146,7 +146,14 @@ func sync() {
 				break
 			}
 		}
-		for _, ev := range room.Timeline.Events {
+		for i, ev := range room.Timeline.Events {
+			if i == len(room.Timeline.Events)-1 {
+				pes, per := http.Post(apistr("rooms/"+id+
+					"/receipt/m.read/"+ev.EventId+"?"),
+					"application/json", bytes.NewBuffer([]byte("")))
+				check(pes, per)
+			}
+
 			if ev.Type != "m.room.message" {
 				continue
 			}
@@ -164,7 +171,6 @@ func sync() {
 			}
 			ioutil.WriteFile(file, []byte(content+"\n"), 0644)
 			os.Chtimes(file, tm, tm)
-			/* If this is the newest event, sent ev.EventId in a receipt. */
 		}
 	}
 }
