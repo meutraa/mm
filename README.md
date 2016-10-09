@@ -11,12 +11,14 @@ message.
 * Online presence.
 * Message modification time set to message timestamp (allows system ordering
 by time).
+* Sending messages through named pipes.
 
 ###### Planned
 * Syncing all message history without gaps.
-* Sending messages through named pipes.
 
 ###### Unsure
+* Should messages be sent by creating files under an in directory instead of a
+fifo pipe?
 * Different treatment for notice and emote type messages.
 * Automatic file, image, and audio downloads.
 
@@ -47,33 +49,18 @@ mm			(-d <dir>)
         ├── @person1:server.org
         │   ├── message1
         │   └── message2
-        └── @me:server.org
-            ├── message1
-            └── message2
+        ├──@me:server.org
+        │   ├── message1
+        │   └── message2
+        └── in
 ```
 
 #### Usage
-Some commands that could prove useful. All of these print newest last.
-
-Inside a room directory
+ls, tail, cat, find, and echo are your best friends.
 ```
-List messages:
-$ ls -tr1 */*		(without time)
-$ ls -gGo */*		(with time)
+Send message to room
+$ echo "message" > in
 
-Print room messages:
-$ cat `ls -tr */*`	(without filenames)
-$ tail */*		(with filenames)
-```
-
-Inside a server directory
-```
-List all messages:
-cat `find -L -type f | grep -v ! | sort -t '/' -k 4,4`
-cat `ls -rt1 \!*/*/*`
-
-List last 10 messages with headers:
-tail `find -L -type f | grep -v ! | sort -t '/' -k 4,4 | tail -n 10`
-tail `ls -rt1 */*/* | grep -v '!' | tail -n 10`
-
+View all message in room (newest last)
+$ cat `ls -1rt @*/*`
 ```

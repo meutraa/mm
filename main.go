@@ -10,12 +10,15 @@ import (
 	"net/http"
 	"os"
 	"os/user"
+	"path"
+	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 )
 
 var sesh session
-var host, username, pass, path string
+var host, username, pass, hostPath string
 
 type data struct {
 	NextBatch string `json:"next_batch"`
@@ -69,6 +72,10 @@ type session struct {
 	TxnId        int64
 }
 
+type pipe struct {
+	Path, RoomId string
+}
+
 func apistr(str string) string {
 	return host + "/_matrix/client/r0/" + str + "access_token=" + sesh.AccessToken
 }
@@ -92,7 +99,7 @@ func main() {
 	flag.StringVar(&host, "s", "", "homeserver url <https://matrix.org>")
 	flag.StringVar(&username, "u", "", "not full qualified username <bob>")
 	flag.StringVar(&pass, "p", "", "password <pass1234>")
-	flag.StringVar(&path, "d", usr.HomeDir+"/mm", "directory path")
+	flag.StringVar(&hostPath, "d", usr.HomeDir+"/mm", "directory path")
 	flag.Parse()
 
 	if host == "" || username == "" || pass == "" {
@@ -102,12 +109,36 @@ func main() {
 
 	login()
 	sesh.TxnId = time.Now().UnixNano()
-	path += "/" + sesh.Homeserver + "/"
+	hostPath = path.Join(hostPath, sesh.Homeserver)
+	_, stat := os.Stat(hostPath)
+	if os.IsNotExist(stat) {
+		os.MkdirAll(hostPath, os.ModeDir|os.ModePerm)
+	}
+	var walker = func(p string, info os.FileInfo, err error) error {
+		if info.Name() == "in" {
+			go readPipe(pipe{p, path.Base(path.Dir(p))})
+		}
+		return nil
+	}
+
+	filepath.Walk(hostPath, walker)
+	sync()
 	for {
 		sync()
 		time.Sleep(5 * time.Second)
 	}
 	logout()
+}
+
+func readPipe(p pipe) {
+	for {
+		str, err := ioutil.ReadFile(p.Path)
+		if nil != err || len(str) == 0 {
+			fmt.Println("Could not read message:", p.RoomId, err)
+			continue
+		}
+		sendMessage(p.RoomId, string(str))
+	}
 }
 
 func sync() {
@@ -124,7 +155,7 @@ func sync() {
 		return
 	}
 
-	d := data{}
+	var d data
 	if json.Unmarshal(body, &d) != nil {
 		fmt.Println("Unable to parse data:", body)
 		return
@@ -132,18 +163,23 @@ func sync() {
 	sesh.CurrentBatch = d.NextBatch
 
 	for id, room := range d.Rooms.Join {
-		os.MkdirAll(path+id, os.ModeDir|os.ModePerm)
-		os.Create(path + id + "/in")
-		os.Chmod(path+id+"/in", os.ModeNamedPipe|0600)
-		/* Is there a better way to get the room name/member? */
-		for _, ev := range room.State.Events {
-			if ev.Type == "m.room.name" {
-				os.Symlink(path+id, path+ev.Content.Name)
-				break
-			}
-			if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
-				os.Symlink(path+id, path+ev.Sender)
-				break
+		roomPath := path.Join(hostPath, id)
+		_, stat := os.Stat(roomPath)
+		if os.IsNotExist(stat) {
+			pipePath := path.Join(roomPath, "in")
+			os.MkdirAll(roomPath, os.ModeDir|os.ModePerm)
+			syscall.Mkfifo(pipePath, syscall.S_IFIFO|0666)
+			go readPipe(pipe{pipePath, id})
+			/* Is there a better way to get the room name/member? */
+			for _, ev := range room.State.Events {
+				if ev.Type == "m.room.name" {
+					os.Symlink(roomPath, path.Join(hostPath, ev.Content.Name))
+					break
+				}
+				if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
+					os.Symlink(roomPath, path.Join(hostPath, ev.Sender))
+					break
+				}
 			}
 		}
 		for i, ev := range room.Timeline.Events {
@@ -157,9 +193,12 @@ func sync() {
 			if ev.Type != "m.room.message" {
 				continue
 			}
-			tm := time.Unix(int64(ev.Timestamp/1000), int64(1000*(ev.Timestamp%1000)))
-			os.Mkdir(path+id+"/"+ev.Sender, os.ModeDir|os.ModePerm)
-			file := path + id + "/" + ev.Sender + "/" + strconv.Itoa(ev.Timestamp)
+			/* Set directory to most recent message timestamp from sender. */
+			sendPath := path.Join(roomPath, ev.Sender)
+			_, stat = os.Stat(sendPath)
+			if os.IsNotExist(stat) {
+				os.Mkdir(sendPath, os.ModeDir|os.ModePerm)
+			}
 			var content string
 			switch ev.Content.Type {
 			case "m.image", "m.file", "m.video", "m.audio":
@@ -169,6 +208,9 @@ func sync() {
 			default:
 				content = ev.Content.Body
 			}
+
+			tm := time.Unix(int64(ev.Timestamp/1000), int64(1000*(ev.Timestamp%1000)))
+			file := path.Join(sendPath, strconv.Itoa(ev.Timestamp))
 			ioutil.WriteFile(file, []byte(content+"\n"), 0644)
 			os.Chtimes(file, tm, tm)
 		}
