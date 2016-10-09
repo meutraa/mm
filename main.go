@@ -17,88 +17,9 @@ import (
 	"time"
 )
 
-var sesh session
-var host, username, pass, accPath string
-
-type data struct {
-	NextBatch string `json:"next_batch"`
-	Rooms     rooms  `json:"rooms"`
-}
-
-type rooms struct {
-	Join map[string]joinedRooms `json:"join"`
-}
-
-type joinedRooms struct {
-	State    state    `json:"state"`
-	Timeline timeline `json:"timeline"`
-}
-
-type state struct {
-	Events []event `json:"events"`
-}
-
-type timeline struct {
-	Events []event `json:"events"`
-}
-
-type event struct {
-	Timestamp int     `json:"origin_server_ts"`
-	EventId   string  `json:"event_id"`
-	Type      string  `json:"type"`
-	Content   content `json:"content"`
-	Sender    string  `json:"sender"`
-}
-
-type message struct {
-	Body string `json:"body"`
-	Type string `json:"msgtype"`
-}
-
-type content struct {
-	message
-	Name   string `json:"name"`
-	Url    string `json:"url"`
-	GeoUri string `json:"geo_uri"`
-}
-
-type session struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	Homeserver   string `json:"home_server"`
-	UserId       string `json:"user_id"`
-	DeviceId     string `json:"device_id"`
-	CurrentBatch string
-	TxnId        int64
-}
-
-func apistr(str string) string {
-	return host + "/_matrix/client/r0/" + str + "access_token=" + sesh.AccessToken
-}
-
-func sendMessage(roomId string, text string) {
-	b, _ := json.Marshal(message{text, "m.text"})
-	var client http.Client
-	req, _ := http.NewRequest("PUT", apistr("rooms/"+roomId+
-		"/send/m.room.message/"+strconv.FormatInt(sesh.TxnId, 10)+"?"),
-		bytes.NewBuffer(b))
-	sesh.TxnId += 1
-	res, err := client.Do(req)
-	body := check(res, err)
-	if len(body) == 0 {
-		fmt.Println("Unable to send message:", roomId, ":", text)
-	}
-}
-
-var walker = func(path string, info os.FileInfo, err error) error {
-	if info.Name() == "in" {
-		go readPipe(path)
-	}
-	return nil
-}
-
 func main() {
 	usr, _ := user.Current()
+	var host, username, pass, accPath string
 	flag.StringVar(&host, "s", "", "homeserver url <https://matrix.org>")
 	flag.StringVar(&username, "u", "", "not full qualified username <bob>")
 	flag.StringVar(&pass, "p", "", "password <pass1234>")
@@ -110,15 +31,38 @@ func main() {
 		return
 	}
 
-	login()
+	sesh := login(host, username, pass)
 	accPath = path.Join(accPath, sesh.Homeserver, sesh.UserId)
 	mkdir(accPath)
+	var walker = func(path string, info os.FileInfo, err error) error {
+		if info.Name() == "in" {
+			go readPipe(path, host, sesh.AccessToken)
+		}
+		return nil
+	}
 	filepath.Walk(accPath, walker)
 
 	for ; ; time.Sleep(5 * time.Second) {
-		sync()
+		sync(host, sesh, accPath)
 	}
-	logout()
+	logout(host, sesh.AccessToken)
+}
+
+func apistr(host string, call string, token string) string {
+	return host + "/_matrix/client/r0/" + call + "access_token=" + token
+}
+
+func sendMessage(host string, token string, roomId string, text string) {
+	b, _ := json.Marshal(message{text, "m.text"})
+	var client http.Client
+	req, _ := http.NewRequest("PUT", apistr(host, "rooms/"+roomId+
+		"/send/m.room.message/"+strconv.FormatInt(time.Now().UnixNano(), 10)+"?", token),
+		bytes.NewBuffer(b))
+	res, err := client.Do(req)
+	body := check(res, err)
+	if len(body) == 0 {
+		fmt.Println("Unable to send message:", roomId, ":", text)
+	}
 }
 
 func mkdir(dir string) bool {
@@ -130,7 +74,7 @@ func mkdir(dir string) bool {
 	return created
 }
 
-func readPipe(pipe string) {
+func readPipe(pipe string, host string, token string) {
 	roomId := path.Base(path.Dir(pipe))
 	for {
 		str, err := ioutil.ReadFile(pipe)
@@ -138,43 +82,22 @@ func readPipe(pipe string) {
 			fmt.Println("Could not read message:", roomId, err)
 			continue
 		}
-		sendMessage(roomId, string(str))
+		sendMessage(host, token, roomId, string(str))
 	}
 }
 
-func addfifo(roomPath string) {
+func addfifo(roomPath string, host string, token string) {
 	pipe := path.Join(roomPath, "in")
 	syscall.Mkfifo(pipe, syscall.S_IFIFO|0600)
-	go readPipe(pipe)
+	go readPipe(pipe, host, token)
 }
 
-func mkroom(id string, states []event) string {
-	roomPath := path.Join(accPath, id)
-	if mkdir(roomPath) {
-		/* Is there a better way to get the room name/member? */
-		addfifo(roomPath)
-		var name string
-		for _, ev := range states {
-			if ev.Type == "m.room.name" {
-				name = ev.Content.Name
-				break
-			}
-			if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
-				name = ev.Sender
-				break
-			}
-		}
-		os.Symlink(roomPath, path.Join(accPath, name))
-	}
-	return roomPath
-}
-
-func sync() {
+func sync(host string, sesh session, accPath string) {
 	str := "sync?"
 	if sesh.CurrentBatch != "" {
 		str += "since=" + sesh.CurrentBatch + "&"
 	}
-	res, err := http.Get(apistr(str))
+	res, err := http.Get(apistr(host, str, sesh.AccessToken))
 	body := check(res, err)
 	if len(body) == 0 {
 		fmt.Println("Unable to sync data")
@@ -189,11 +112,27 @@ func sync() {
 	sesh.CurrentBatch = d.NextBatch
 
 	for id, room := range d.Rooms.Join {
-		roomPath := mkroom(id, room.State.Events)
+		roomPath := path.Join(accPath, id)
+		if mkdir(roomPath) {
+			/* Is there a better way to get the room name/member? */
+			addfifo(roomPath, host, sesh.AccessToken)
+			var name string
+			for _, ev := range room.State.Events {
+				if ev.Type == "m.room.name" {
+					name = ev.Content.Name
+					break
+				}
+				if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
+					name = ev.Sender
+					break
+				}
+			}
+			os.Symlink(roomPath, path.Join(accPath, name))
+		}
 		for i, ev := range room.Timeline.Events {
 			if i == len(room.Timeline.Events)-1 {
-				pes, per := http.Post(apistr("rooms/"+id+
-					"/receipt/m.read/"+ev.EventId+"?"),
+				pes, per := http.Post(apistr(host, "rooms/"+id+
+					"/receipt/m.read/"+ev.EventId+"?", sesh.AccessToken),
 					"application/json", bytes.NewBuffer([]byte("")))
 				check(pes, per)
 			}
@@ -233,21 +172,23 @@ func check(res *http.Response, err error) []byte {
 	return body
 }
 
-func logout() {
-	res, err := http.Post(apistr("logout?"), "application/json", nil)
+func logout(host string, token string) {
+	res, err := http.Post(apistr(host, "logout?", token), "application/json", nil)
 	check(res, err)
 }
 
-func login() {
-	res, err := http.Post(host+"/_matrix/client/r0/login", "application/json",
-		bytes.NewBuffer([]byte("{\"type\":\"m.login.password\",\"user\":\""+username+"\",\"password\":\""+pass+"\"}")))
+func login(host string, username string, pass string) session {
+	b, _ := json.Marshal(auth{"m.login.password", username, pass})
+	res, err := http.Post(host+"/_matrix/client/r0/login", "application/json", bytes.NewBuffer(b))
 
 	body := check(res, err)
 	if len(body) == 0 {
 		log.Fatalln("Login failed")
 	}
+	var sesh session
 	err = json.Unmarshal(body, &sesh)
 	if err != nil || sesh.AccessToken == "" {
 		log.Fatalf("Login response not decoded: %s, %s\n", err, body)
 	}
+	return sesh
 }
