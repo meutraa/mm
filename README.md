@@ -15,6 +15,7 @@ by time).
 
 ###### Planned
 * Syncing all message history without gaps.
+* Swap exchange token for access token when access token expires.
 
 ###### Unsure
 * Should messages be sent by creating files under an in directory instead of a
@@ -47,17 +48,18 @@ go get gitlab.com/meutraa/mm
 Symbolic links are created for each room with the name of the room, or the
 participant of the private chat.
 ```
-mm			(-d <dir>)
-└── server.org		(-s <host>)
-    ├── @roomName:server.org -> !roomID:server.org
-    └── !roomID:server.org
-        ├── @person1:server.org
-        │   ├── message1
-        │   └── message2
-        ├──@me:server.org
-        │   ├── message1
-        │   └── message2
-        └── in
+.
+└── server.org
+    └── @account1:server.org
+        ├── !roomId:server.org
+        │   ├── in
+        │   ├── @account1:server.org
+        │   │   ├── message1
+        │   │   └── message2
+        │   └── @contact1:server.org
+        │       ├── message1
+        │       └── message2
+        └── @roomName:server.org -> ./server.org/@contact1:server.org/!roomId:server.org
 ```
 
 #### Usage

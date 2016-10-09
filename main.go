@@ -18,7 +18,7 @@ import (
 )
 
 var sesh session
-var host, username, pass, hostPath string
+var host, username, pass, accPath string
 
 type data struct {
 	NextBatch string `json:"next_batch"`
@@ -72,10 +72,6 @@ type session struct {
 	TxnId        int64
 }
 
-type pipe struct {
-	Path, RoomId string
-}
-
 func apistr(str string) string {
 	return host + "/_matrix/client/r0/" + str + "access_token=" + sesh.AccessToken
 }
@@ -94,12 +90,19 @@ func sendMessage(roomId string, text string) {
 	}
 }
 
+var walker = func(path string, info os.FileInfo, err error) error {
+	if info.Name() == "in" {
+		go readPipe(path)
+	}
+	return nil
+}
+
 func main() {
 	usr, _ := user.Current()
 	flag.StringVar(&host, "s", "", "homeserver url <https://matrix.org>")
 	flag.StringVar(&username, "u", "", "not full qualified username <bob>")
 	flag.StringVar(&pass, "p", "", "password <pass1234>")
-	flag.StringVar(&hostPath, "d", usr.HomeDir+"/mm", "directory path")
+	flag.StringVar(&accPath, "d", usr.HomeDir+"/mm", "directory path")
 	flag.Parse()
 
 	if host == "" || username == "" || pass == "" {
@@ -108,47 +111,70 @@ func main() {
 	}
 
 	login()
-	sesh.TxnId = time.Now().UnixNano()
-	hostPath = path.Join(hostPath, sesh.Homeserver)
-	_, stat := os.Stat(hostPath)
-	if os.IsNotExist(stat) {
-		os.MkdirAll(hostPath, os.ModeDir|os.ModePerm)
-	}
-	var walker = func(p string, info os.FileInfo, err error) error {
-		if info.Name() == "in" {
-			go readPipe(pipe{p, path.Base(path.Dir(p))})
-		}
-		return nil
-	}
+	accPath = path.Join(accPath, sesh.Homeserver, sesh.UserId)
+	mkdir(accPath)
+	filepath.Walk(accPath, walker)
 
-	filepath.Walk(hostPath, walker)
-	sync()
-	for {
+	for ; ; time.Sleep(5 * time.Second) {
 		sync()
-		time.Sleep(5 * time.Second)
 	}
 	logout()
 }
 
-func readPipe(p pipe) {
+func mkdir(dir string) bool {
+	_, stat := os.Stat(dir)
+	created := os.IsNotExist(stat)
+	if os.IsNotExist(stat) {
+		os.MkdirAll(dir, 0700)
+	}
+	return created
+}
+
+func readPipe(pipe string) {
+	roomId := path.Base(path.Dir(pipe))
 	for {
-		str, err := ioutil.ReadFile(p.Path)
+		str, err := ioutil.ReadFile(pipe)
 		if nil != err || len(str) == 0 {
-			fmt.Println("Could not read message:", p.RoomId, err)
+			fmt.Println("Could not read message:", roomId, err)
 			continue
 		}
-		sendMessage(p.RoomId, string(str))
+		sendMessage(roomId, string(str))
 	}
 }
 
-func sync() {
-	var res *http.Response
-	var err error
-	if sesh.CurrentBatch == "" {
-		res, err = http.Get(apistr("sync?"))
-	} else {
-		res, err = http.Get(apistr("sync?since=" + sesh.CurrentBatch + "&"))
+func addfifo(roomPath string) {
+	pipe := path.Join(roomPath, "in")
+	syscall.Mkfifo(pipe, syscall.S_IFIFO|0600)
+	go readPipe(pipe)
+}
+
+func mkroom(id string, states []event) string {
+	roomPath := path.Join(accPath, id)
+	if mkdir(roomPath) {
+		/* Is there a better way to get the room name/member? */
+		addfifo(roomPath)
+		var name string
+		for _, ev := range states {
+			if ev.Type == "m.room.name" {
+				name = ev.Content.Name
+				break
+			}
+			if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
+				name = ev.Sender
+				break
+			}
+		}
+		os.Symlink(roomPath, path.Join(accPath, name))
 	}
+	return roomPath
+}
+
+func sync() {
+	str := "sync?"
+	if sesh.CurrentBatch != "" {
+		str += "since=" + sesh.CurrentBatch + "&"
+	}
+	res, err := http.Get(apistr(str))
 	body := check(res, err)
 	if len(body) == 0 {
 		fmt.Println("Unable to sync data")
@@ -163,25 +189,7 @@ func sync() {
 	sesh.CurrentBatch = d.NextBatch
 
 	for id, room := range d.Rooms.Join {
-		roomPath := path.Join(hostPath, id)
-		_, stat := os.Stat(roomPath)
-		if os.IsNotExist(stat) {
-			pipePath := path.Join(roomPath, "in")
-			os.MkdirAll(roomPath, os.ModeDir|os.ModePerm)
-			syscall.Mkfifo(pipePath, syscall.S_IFIFO|0666)
-			go readPipe(pipe{pipePath, id})
-			/* Is there a better way to get the room name/member? */
-			for _, ev := range room.State.Events {
-				if ev.Type == "m.room.name" {
-					os.Symlink(roomPath, path.Join(hostPath, ev.Content.Name))
-					break
-				}
-				if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
-					os.Symlink(roomPath, path.Join(hostPath, ev.Sender))
-					break
-				}
-			}
-		}
+		roomPath := mkroom(id, room.State.Events)
 		for i, ev := range room.Timeline.Events {
 			if i == len(room.Timeline.Events)-1 {
 				pes, per := http.Post(apistr("rooms/"+id+
@@ -195,18 +203,13 @@ func sync() {
 			}
 			/* Set directory to most recent message timestamp from sender. */
 			sendPath := path.Join(roomPath, ev.Sender)
-			_, stat = os.Stat(sendPath)
-			if os.IsNotExist(stat) {
-				os.Mkdir(sendPath, os.ModeDir|os.ModePerm)
-			}
-			var content string
+			mkdir(sendPath)
+			content := ev.Content.Body
 			switch ev.Content.Type {
 			case "m.image", "m.file", "m.video", "m.audio":
-				content = ev.Content.Body + ": " + ev.Content.Url
+				content += ": " + ev.Content.Url
 			case "m.location":
-				content = ev.Content.Body + ": " + ev.Content.GeoUri
-			default:
-				content = ev.Content.Body
+				content += ": " + ev.Content.GeoUri
 			}
 
 			tm := time.Unix(int64(ev.Timestamp/1000), int64(1000*(ev.Timestamp%1000)))
