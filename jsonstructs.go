@@ -25,7 +25,8 @@ type state struct {
 }
 
 type timeline struct {
-	Events []event `json:"events"`
+	Events    []event `json:"events"`
+	PrevBatch string  `json:"prev_batch"`
 }
 
 type event struct {
@@ -49,7 +50,7 @@ type content struct {
 }
 
 type session struct {
-	AccessToken  string `json:"access_token"`
+	Token        string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	Homeserver   string `json:"home_server"`
 	UserId       string `json:"user_id"`

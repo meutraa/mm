@@ -16,12 +16,14 @@ by time).
 ###### Planned
 * Syncing all message history without gaps.
 * Swap exchange token for access token when access token expires.
+* Message redaction from other clients.
 
 ###### Unsure
 * Should messages be sent by creating files under an in directory instead of a
 fifo pipe?
 * Different treatment for notice and emote type messages.
 * Automatic file, image, and audio downloads.
+* Redact / edit messages somehow.
 
 ###### Not Planned
 * Presence status other than online, such as idle.
