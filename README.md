@@ -68,4 +68,7 @@ $ echo "message" > in
 
 View all message in room (newest last)
 $ cat `ls -1rt @*/*`
+
+Monitor all rooms for new messages and print them (inotify-tools)
+while true; do cat `inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w/%f' ~/mm`; done
 ```
