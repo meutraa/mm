@@ -38,6 +38,11 @@ I am not here to interperate trailing slashes and such so:
 	servers are placed in the matrix folder. Do not include a trailing
 	slash.
 
+#### Install (from source)
+```
+go get gitlab.com/meutraa/mm
+```
+
 #### Directory Structure
 Symbolic links are created for each room with the name of the room, or the
 participant of the private chat.
