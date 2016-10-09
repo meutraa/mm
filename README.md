@@ -1,5 +1,28 @@
 This file represents the current functionality, which is not yet complete.
 
+#### Features
+* Fetching last ten messages of each room on start.
+* Receiving messages.
+* Marking latest event as read (the recommendation to only mark this
+as read when the user has read the message seems iffy here. An IMAP type tagging
+system could work, but would be as complex as the program itself). At least
+this way, users of other clients will know your computer has recieved the
+message.
+* Online presence.
+* Message modification time set to message timestamp (allows system ordering
+by time).
+
+###### Planned
+* Syncing all message history without gaps.
+* Sending messages through named pipes.
+
+###### Unsure
+* Different treatment for notice and emote type messages.
+* Automatic file, image, and audio downloads.
+
+###### Not Planned
+* Presence status other than online, such as idle.
+
 #### Notes
 I am not here to interperate trailing slashes and such so:
 * If your homeserver/username/password contains funky characters, enclose it
