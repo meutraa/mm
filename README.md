@@ -42,6 +42,15 @@ I am not here to interperate trailing slashes and such so:
 #### Install (from source)
 ```
 go get gitlab.com/meutraa/mm
+
+```
+###### Cross Compiling
+See (doc/install/source)[https://golang.org/doc/install/source#environment] for
+GOOS and GOARCH combinations.
+```
+git clone git@gitlab.com:meutraa/mm.git
+cd mm
+GOOS=linux GOARCH=arm go build
 ```
 
 #### Directory Structure
