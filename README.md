@@ -59,7 +59,7 @@ participant of the private chat.
         │   └── @contact1:server.org
         │       ├── message1
         │       └── message2
-        └── @roomName:server.org -> ./server.org/@contact1:server.org/!roomId:server.org
+        └── @roomName:server.org -> ./server.org/@account1:server.org/!roomId:server.org
 ```
 
 #### Usage
