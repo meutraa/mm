@@ -1,8 +1,10 @@
-This file represents the current functionality, which is not yet complete.
+## mm (19311931)
 
 #### Features
+* Less than 200 lines of code.
 * Fetching last ten messages of each room on start.
 * Receiving messages.
+* Sending messages through named pipes.
 * Marking latest event as read (the recommendation to only mark this
 as read when the user has read the message seems iffy here. An IMAP type tagging
 system could work, but would be as complex as the program itself). At least
@@ -11,12 +13,11 @@ message.
 * Online presence.
 * Message modification time set to message timestamp (allows system ordering
 by time).
-* Sending messages through named pipes.
 
 ###### Planned
+* Always less than 250 lines of code.
 * Syncing all message history without gaps.
 * Swap exchange token for access token when access token expires.
-* Message redaction from other clients.
 
 ###### Unsure
 * Should messages be sent by creating files under an in directory instead of a
@@ -30,9 +31,6 @@ fifo pipe?
 
 #### Notes
 I am not here to interperate trailing slashes and such so:
-* If your homeserver/username/password contains funky characters, enclose it
-	in quotation marks. For example, `-p "\"ha\?!$t"`. Remember to escape
-	any quotation marks with a backslash as in the example.
 * -s <host> must include a protocol (http:// or https://) and have no trailing
   slash. If the server includes a port, use server.name:port. For example,
 	`-s https://matrix.org`
@@ -42,22 +40,21 @@ I am not here to interperate trailing slashes and such so:
 	slash.
 
 #### Install (from source)
-```
+```shell
 go get gitlab.com/meutraa/mm
 ```
 
 ###### Cross Compiling
-See (doc/install/source)[https://golang.org/doc/install/source#environment] for
-GOOS and GOARCH combinations.
-```
+See https://golang.org/doc/install/source#environment for GOOS and GOARCH combinations.
+```shell
 git clone git@gitlab.com:meutraa/mm.git
 cd mm
 GOOS=linux GOARCH=arm go build
 ```
 
 #### Directory Structure
+Structure works with multiple servers and accounts.
 ```
-Structure should work with multiple servers and accounts.
 .
 └── server.org
     └── @account1:server.org
@@ -71,14 +68,15 @@ Structure should work with multiple servers and accounts.
 
 #### Usage
 ls, tail, cat, find, and echo are your best friends.
+
 Send message to room
 ```shell
-$ echo "message" > in
+echo "message" > in
 ```
 
 View all messages in room (newest last)
 ```shell
-$ cat `ls -1rt @*/*`
+cat `ls -1rt @*/*`
 ```
 
 Simple script that displays a short history and all new messages with time and
