@@ -91,13 +91,29 @@ Simple script that displays a short history and all new messages with time and
 sender prefixed.
 ```shell
 #/bin/sh
-function message {
-	SENDER=`echo "$@" | grep -o '@\([^\/]*\)' | tail -n 1`
-	UNIX_TIME=`stat -c "%Y" "$@"`
-	TIME=`date -d "@$UNIX_TIME" +%R`
-	echo "$TIME " "$SENDER:" `cat "$@"`
+# Run from inside an account directory.
+function friendly {
+	# These are optional if you want to be confused who you are talking to.
+	case "$@" in
+	#!roomId:server.org) echo name;;
+	*) echo "$@"
+	esac
 }
 
+function message {
+	FILE="!$(echo $@ | cut -d'!' -f2)"
+	ROOM=`friendly $(echo "$FILE" | cut -d'/' -f1)`
+	if [ "$ROOM" != "$CUR_ROOM" ]; then
+		CUR_ROOM="$ROOM"
+		echo -e "\n-- $CUR_ROOM -- "
+	fi
+	SENDER=`echo "$FILE" | grep -oP '\@\K[^\:]*'`
+	UNIX_TIME=`stat -c "%Y" "$FILE"`
+	TIME=`date -d "@$UNIX_TIME" +%R`
+	echo "$TIME " "$SENDER:" `cat "$FILE"`
+}
+
+CUR_ROOM=""
 OLD_MSGS=(`ls -1rt */@*/* | tail -n 10`)
 for i in "${OLD_MSGS[@]}"; do message "$i"; done
 while true; do
