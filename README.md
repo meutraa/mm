@@ -78,6 +78,13 @@ $ echo "message" > in
 View all message in room (newest last)
 $ cat `ls -1rt @*/*`
 
-Monitor all rooms for new messages and print them (inotify-tools)
-while true; do cat `inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w/%f' ~/mm`; done
+Simple script that displays all new messages with time and sender prefixed.
+#/bin/sh
+while true; do
+        FILE=`inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm`
+        SENDER=`echo "$FILE" | grep -o '@\([^\/]*\)' | tail -n 1`
+	UNIX_TIME=`stat -c "%Y" "$FILE"`
+        TIME=`date -d "@$UNIX_TIME" +%R`
+        echo "$TIME " "$SENDER:" `cat "$FILE"`
+done
 ```
