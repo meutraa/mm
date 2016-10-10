@@ -31,7 +31,7 @@ fifo pipe?
 
 #### Notes
 I am not here to interperate trailing slashes and such so:
-* -s <host> must include a protocol (http:// or https://) and have no trailing
+* -s <host> must include a protocol ( http:// or https:// ) and have no trailing
   slash. If the server includes a port, use server.name:port. For example,
 	`-s https://matrix.org`
 * -d <dir> will create that directory structure. In `-d $HOME/chat/matrix`, all
@@ -68,6 +68,10 @@ Structure works with multiple servers and accounts.
 
 #### Usage
 ls, tail, cat, find, and echo are your best friends.
+
+```shell
+mm -s https://host[:port] -u user -p password
+```
 
 Send message to room
 ```shell
