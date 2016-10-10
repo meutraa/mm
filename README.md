@@ -132,8 +132,9 @@ cd "$HOME/mm/server.org/@account:server.org"
 CUR_ROOM=""
 OLD_MSGS=(`ls -1rt */@*/* | tail -n 20`)
 for i in "${OLD_MSGS[@]}"; do message "$i"; done
-while true; do
-	message `inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm`
+inotifywait -m -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm |
+while read MESSAGE; do
+        message "$MESSAGE"
 done
 ```
 
