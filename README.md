@@ -126,10 +126,11 @@ function message {
 	echo -e "$TIME " "$SENDER\t" `cat "$FILE"`
 }
 
+clear
 # Change this to your account directory.
 cd "$HOME/mm/server.org/@account:server.org"
 CUR_ROOM=""
-OLD_MSGS=(`ls -1rt */@*/* | tail -n 10`)
+OLD_MSGS=(`ls -1rt */@*/* | tail -n 20`)
 for i in "${OLD_MSGS[@]}"; do message "$i"; done
 while true; do
 	message `inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm`
@@ -154,6 +155,10 @@ FONT="Inconsalata:size=28"
 
 # Add in any rooms here that you gave a friendly name.
 REC=`echo -e "roomName1\nroomName2" | dmenu -b -fn "$FONT"`
+if [ "$?" -ne 0 ]; then exit; fi
 MESSAGE=`echo "" | dmenu -b -fn "$FONT" -p "$REC"`
-echo "$MESSAGE" > "`friendly $REC`/in"
+case $MESSAGE in
+	(*[![:blank:]]*) echo "$MESSAGE" > "`friendly $REC`/in";;
+	(*) exit
+esac
 ```
