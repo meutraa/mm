@@ -108,8 +108,8 @@ function senders {
 	# Contact here is the fully qualified username without the server
 	# So @contact:server.org would be just @contact
 	case "$@" in
-		@contact)	echo name;;
-		*)              echo "$@";;
+		#@contact)	echo name;;
+		*)		echo "$@";;
 	esac
 }
 
@@ -140,8 +140,8 @@ And here is a dmenu script to send messages.
 ```shell
 #!/bin/sh
 function friendly {
+	# Change these to your room name mappings.
 	case "$@" in
-		# Change these to your room name mappings.
 		#roomName1) echo !roomId1:server.org;;
 		#roomName2) echo !roomId2:server.org;;
 		*) echo "$@"
