@@ -44,8 +44,8 @@ I am not here to interperate trailing slashes and such so:
 #### Install (from source)
 ```
 go get gitlab.com/meutraa/mm
-
 ```
+
 ###### Cross Compiling
 See (doc/install/source)[https://golang.org/doc/install/source#environment] for
 GOOS and GOARCH combinations.
@@ -71,15 +71,19 @@ Structure should work with multiple servers and accounts.
 
 #### Usage
 ls, tail, cat, find, and echo are your best friends.
-```
 Send message to room
+```shell
 $ echo "message" > in
+```
 
-View all message in room (newest last)
+View all messages in room (newest last)
+```shell
 $ cat `ls -1rt @*/*`
+```
 
 Simple script that displays a short history and all new messages with time and
 sender prefixed.
+```shell
 #/bin/sh
 function message {
 	SENDER=`echo "$@" | grep -o '@\([^\/]*\)' | tail -n 1`
