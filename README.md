@@ -78,13 +78,19 @@ $ echo "message" > in
 View all message in room (newest last)
 $ cat `ls -1rt @*/*`
 
-Simple script that displays all new messages with time and sender prefixed.
+Simple script that displays a short history and all new messages with time and
+sender prefixed.
 #/bin/sh
+function message {
+	SENDER=`echo "$@" | grep -o '@\([^\/]*\)' | tail -n 1`
+	UNIX_TIME=`stat -c "%Y" "$@"`
+	TIME=`date -d "@$UNIX_TIME" +%R`
+	echo "$TIME " "$SENDER:" `cat "$@"`
+}
+
+OLD_MSGS=(`ls -1rt */@*/* | tail -n 10`)
+for i in "${OLD_MSGS[@]}"; do message "$i"; done
 while true; do
-        FILE=`inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm`
-        SENDER=`echo "$FILE" | grep -o '@\([^\/]*\)' | tail -n 1`
-	UNIX_TIME=`stat -c "%Y" "$FILE"`
-        TIME=`date -d "@$UNIX_TIME" +%R`
-        echo "$TIME " "$SENDER:" `cat "$FILE"`
+	message `inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm`
 done
 ```
