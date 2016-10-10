@@ -87,16 +87,29 @@ View all messages in room (newest last)
 cat `ls -1rt @*/*`
 ```
 
-Simple script that displays a short history and all new messages with time and
-sender prefixed.
+#### Example Scripts
+These will require you to edit the highlighted variables to work with your
+setup.
+
+Simple script that displays a short history and all new messages.
 ```shell
 #/bin/sh
 # Run from inside an account directory.
 function friendly {
 	# These are optional if you want to be confused who you are talking to.
 	case "$@" in
-	#!roomId:server.org) echo name;;
+		#!roomId:server.org) echo name;;
 	*) echo "$@"
+	esac
+}
+
+# Nicknames
+function senders {
+	# Contact here is the fully qualified username without the server
+	# So @contact:server.org would be just @contact
+	case "$@" in
+		@contact)	echo name;;
+		*)              echo "$@";;
 	esac
 }
 
@@ -107,16 +120,40 @@ function message {
 		CUR_ROOM="$ROOM"
 		echo -e "\n-- $CUR_ROOM -- "
 	fi
-	SENDER=`echo "$FILE" | grep -oP '\@\K[^\:]*'`
+	SENDER=`senders "$(echo $FILE | grep -o '\@[^\:]*')"`
 	UNIX_TIME=`stat -c "%Y" "$FILE"`
 	TIME=`date -d "@$UNIX_TIME" +%R`
-	echo "$TIME " "$SENDER:" `cat "$FILE"`
+	echo -e "$TIME " "$SENDER\t" `cat "$FILE"`
 }
 
+# Change this to your account directory.
+cd "$HOME/mm/server.org/@account:server.org"
 CUR_ROOM=""
 OLD_MSGS=(`ls -1rt */@*/* | tail -n 10`)
 for i in "${OLD_MSGS[@]}"; do message "$i"; done
 while true; do
 	message `inotifywait -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm`
 done
+```
+
+And here is a dmenu script to send messages.
+```shell
+#!/bin/sh
+function friendly {
+	case "$@" in
+		# Change these to your room name mappings.
+		#roomName1) echo !roomId1:server.org;;
+		#roomName2) echo !roomId2:server.org;;
+		*) echo "$@"
+	esac
+}
+
+# Change these to your preferences.
+cd "$HOME/mm/server.org/@account:server.org"
+FONT="Inconsalata:size=28"
+
+# Add in any rooms here that you gave a friendly name.
+REC=`echo -e "roomName1\nroomName2" | dmenu -b -fn "$FONT"`
+MESSAGE=`echo "" | dmenu -b -fn "$FONT" -p "$REC"`
+echo "$MESSAGE" > "`friendly $REC`/in"
 ```
