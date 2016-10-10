@@ -25,7 +25,7 @@ type timeline struct {
 }
 
 type event struct {
-	Timestamp int     `json:"origin_server_ts"`
+	Timestamp int64   `json:"origin_server_ts"`
 	EventId   string  `json:"event_id"`
 	Type      string  `json:"type"`
 	Content   content `json:"content"`

@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -75,7 +74,7 @@ func readPipe(pipe string, host string, token string) {
 
 		/* Send a message. */
 		b, _ := json.Marshal(message{string(str), "m.text"})
-		url := "rooms/" + roomId + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
+		url := "rooms/" + roomId + "/send/m.room.message/" + string(time.Now().UnixNano()) + "?"
 		req, _ := http.NewRequest("PUT", apistr(host, url, token), bytes.NewBuffer(b))
 		readBody(http.DefaultClient.Do(req))
 	}
@@ -105,29 +104,24 @@ func sync(host string, sesh session, accPath string) {
 			syscall.Mkfifo(pipe, syscall.S_IFIFO|0600)
 			go readPipe(pipe, host, sesh.Token)
 		}
-		evs := &room.Timeline.Events
-		for _, ev := range *evs {
-			if ev.Type == "m.room.message" {
-				/* Set directory to most recent message timestamp from sender. */
-				sendPath := path.Join(roomPath, ev.Sender)
-				os.Mkdir(sendPath, 0700)
-				content := ev.Content.Body
-				switch ev.Content.Type {
-				case "m.image", "m.file", "m.video", "m.audio":
-					content += ": " + ev.Content.Url
-				case "m.location":
-					content += ": " + ev.Content.GeoUri
-				}
-
-				tm := time.Unix(int64(ev.Timestamp/1000), int64(1000*(ev.Timestamp%1000)))
-				file := path.Join(sendPath, ev.EventId)
-				ioutil.WriteFile(file, []byte(content+"\n"), 0644)
-				os.Chtimes(file, tm, tm)
+		var lastId string
+		for _, e := range room.Timeline.Events {
+			lastId = e.EventId
+			if e.Type != "m.room.message" {
+				continue
 			}
+			file := path.Join(roomPath, e.Sender, e.EventId)
+			os.Mkdir(path.Dir(file), 0700)
+
+			s := strings.TrimSpace(e.Content.Body + " " + e.Content.Url + " " + e.Content.GeoUri)
+			ioutil.WriteFile(file, []byte(s+"\n"), 0644)
+
+			t := time.Unix(e.Timestamp/1000, 1000*(e.Timestamp%1000))
+			os.Chtimes(file, t, t)
 		}
 		/* Send a read receipt. */
-		if len(*evs) > 0 {
-			url := "rooms/" + id + "/receipt/m.read/" + (*evs)[len(*evs)-1].EventId + "?"
+		if lastId != "" {
+			url := "rooms/" + id + "/receipt/m.read/" + lastId + "?"
 			readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))
 		}
 	}
