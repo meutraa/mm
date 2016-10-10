@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/user"
@@ -30,15 +29,21 @@ func main() {
 
 	if host == "" || username == "" || pass == "" {
 		flag.PrintDefaults()
-		return
+		os.Exit(2)
 	}
 
 	/* Account login and setup. */
-	sesh := login(host, username, pass)
+	var sesh session
+	b, _ := json.Marshal(auth{"m.login.password", username, pass})
+	body := readBody(http.Post(host+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
+	json.Unmarshal(body, &sesh)
+	if sesh.Token == "" {
+		os.Exit(1)
+	}
 	accPath = path.Join(accPath, sesh.Homeserver, sesh.UserId)
 	os.MkdirAll(accPath, 0700)
 
-	/* Start reading existing pipes. */
+	/* Start reading existing pipes for sending. */
 	rooms, _ := ioutil.ReadDir(accPath)
 	for _, v := range rooms {
 		if strings.HasPrefix(v.Name(), "!") {
@@ -63,7 +68,7 @@ func readPipe(pipe string, host string, token string) {
 	roomId := path.Base(path.Dir(pipe))
 	for {
 		str, err := ioutil.ReadFile(pipe)
-		if nil != err || len(str) == 0 {
+		if nil != err {
 			fmt.Println("Could not read message:", roomId, err)
 			continue
 		}
@@ -135,34 +140,17 @@ func sync(host string, sesh session, accPath string) {
 		}
 		/* Send a read receipt. */
 		if len(*evs) > 0 {
-			pes, per := http.Post(apistr(host, "rooms/"+id+
-				"/receipt/m.read/"+(*evs)[len(*evs)-1].EventId+"?", sesh.Token),
-				Json, bytes.NewBuffer([]byte("")))
-			readBody(pes, per)
+			url := "rooms/" + id + "/receipt/m.read/" + (*evs)[len(*evs)-1].EventId + "?"
+			readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))
 		}
 	}
 }
 
 func readBody(res *http.Response, err error) []byte {
 	defer res.Body.Close()
-	body, err2 := ioutil.ReadAll(res.Body)
+	body, _ := ioutil.ReadAll(res.Body)
 	if err != nil || res.StatusCode != 200 {
-		fmt.Println(err, res.StatusCode, http.StatusText(res.StatusCode))
-		if err2 == nil {
-			fmt.Printf("%s\n", body)
-		}
-		return []byte("")
+		fmt.Println(err, res.StatusCode, http.StatusText(res.StatusCode), string(body))
 	}
 	return body
-}
-
-func login(host string, username string, pass string) session {
-	b, _ := json.Marshal(auth{"m.login.password", username, pass})
-	body := readBody(http.Post(host+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
-
-	var sesh session
-	if json.Unmarshal(body, &sesh) != nil || sesh.Token == "" {
-		log.Fatalf("Login failed: %s\n", body)
-	}
-	return sesh
 }
