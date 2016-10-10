@@ -83,7 +83,6 @@ func readPipe(pipe string, host string, token string) {
 func sync(host string, sesh session, accPath string) string {
 	str := "sync?"
 	if sesh.CurrentBatch != "" {
-		println(sesh.CurrentBatch)
 		str += "since=" + sesh.CurrentBatch + "&"
 	}
 	body := readBody(http.Get(apistr(host, str, sesh.Token)))
