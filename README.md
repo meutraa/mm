@@ -57,17 +57,16 @@ GOOS=linux GOARCH=arm go build
 
 #### Directory Structure
 ```
+Structure should work with multiple servers and accounts.
 .
 └── server.org
     └── @account1:server.org
         └─── !roomId:server.org
             ├── in
             ├── @account1:server.org
-            │   ├── message1
-            │   └── message2
+            │   └── $messageId:server.org
             └── @contact1:server.org
-                ├── message1
-                └── message2
+                └── $messageId:server.org
 ```
 
 #### Usage
