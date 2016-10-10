@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"strconv"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -56,7 +57,7 @@ func main() {
 	}
 
 	/* Revoke access_token. */
-	readBody(http.Post(apistr(host, "logout?", sesh.Token), Json, nil))
+	http.Post(apistr(host, "logout?", sesh.Token), Json, nil)
 }
 
 func apistr(host string, call string, token string) string {
@@ -74,9 +75,9 @@ func readPipe(pipe string, host string, token string) {
 
 		/* Send a message. */
 		b, _ := json.Marshal(message{string(str), "m.text"})
-		url := "rooms/" + roomId + "/send/m.room.message/" + string(time.Now().UnixNano()) + "?"
+		url := "rooms/" + roomId + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
 		req, _ := http.NewRequest("PUT", apistr(host, url, token), bytes.NewBuffer(b))
-		readBody(http.DefaultClient.Do(req))
+		fmt.Println(string(readBody(http.DefaultClient.Do(req))))
 	}
 }
 
