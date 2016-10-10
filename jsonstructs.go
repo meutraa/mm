@@ -16,12 +16,7 @@ type rooms struct {
 }
 
 type joinedRooms struct {
-	State    state    `json:"state"`
 	Timeline timeline `json:"timeline"`
-}
-
-type state struct {
-	Events []event `json:"events"`
 }
 
 type timeline struct {
