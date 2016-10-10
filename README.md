@@ -1,4 +1,4 @@
-## mm (19311931)
+# mm (19311931)
 
 #### Features
 * Less than 200 lines of code.
@@ -15,7 +15,6 @@ message.
 by time).
 
 ###### Planned
-* Always less than 250 lines of code.
 * Syncing all message history without gaps.
 * Swap exchange token for access token when access token expires.
 
@@ -27,6 +26,7 @@ fifo pipe?
 * Redact / edit messages somehow.
 
 ###### Not Planned
+* More than 250 lines of code.
 * Presence status other than online, such as idle.
 
 #### Notes
@@ -70,7 +70,11 @@ Structure works with multiple servers and accounts.
 ls, tail, cat, find, and echo are your best friends.
 
 ```shell
-mm -s https://host[:port] -u user -p password
+mm [-d dir] -s https://host[:port] -u user -p password
+
+Examples:
+mm -s https://matrix.org -u bob -p 1234
+mm -d "$HOME/chat/mm" -s http://localhost:8008 -u "$USER" -p pass
 ```
 
 Send message to room
