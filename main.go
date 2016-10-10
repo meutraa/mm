@@ -52,7 +52,7 @@ func main() {
 
 	/* Sync loop. */
 	for ; ; time.Sleep(5 * time.Second) {
-		sync(host, sesh, accPath)
+		sesh.CurrentBatch = sync(host, sesh, accPath)
 	}
 
 	/* Revoke access_token. */
@@ -80,19 +80,18 @@ func readPipe(pipe string, host string, token string) {
 	}
 }
 
-func sync(host string, sesh session, accPath string) {
+func sync(host string, sesh session, accPath string) string {
 	str := "sync?"
 	if sesh.CurrentBatch != "" {
+		println(sesh.CurrentBatch)
 		str += "since=" + sesh.CurrentBatch + "&"
 	}
 	body := readBody(http.Get(apistr(host, str, sesh.Token)))
 
 	var d data
-	json.Unmarshal(body, &d)
-	if d.NextBatch == "" {
-		return
+	if json.Unmarshal(body, &d) != nil || d.NextBatch == "" {
+		return sesh.CurrentBatch
 	}
-	sesh.CurrentBatch = d.NextBatch
 
 	for id, room := range d.Rooms.Join {
 		roomPath := path.Join(accPath, id)
@@ -113,11 +112,14 @@ func sync(host string, sesh session, accPath string) {
 			file := path.Join(roomPath, e.Sender, e.EventId)
 			os.Mkdir(path.Dir(file), 0700)
 
-			s := strings.TrimSpace(e.Content.Body + " " + e.Content.Url + " " + e.Content.GeoUri)
-			ioutil.WriteFile(file, []byte(s+"\n"), 0644)
+			_, stat = os.Stat(file)
+			if os.IsNotExist(stat) {
+				s := strings.TrimSpace(e.Content.Body + " " + e.Content.Url + " " + e.Content.GeoUri)
+				ioutil.WriteFile(file, []byte(s+"\n"), 0644)
 
-			t := time.Unix(e.Timestamp/1000, 1000*(e.Timestamp%1000))
-			os.Chtimes(file, t, t)
+				t := time.Unix(e.Timestamp/1000, 1000*(e.Timestamp%1000))
+				os.Chtimes(file, t, t)
+			}
 		}
 		/* Send a read receipt. */
 		if lastId != "" {
@@ -125,6 +127,7 @@ func sync(host string, sesh session, accPath string) {
 			readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))
 		}
 	}
+	return d.NextBatch
 }
 
 func readBody(res *http.Response, err error) []byte {
