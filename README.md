@@ -56,21 +56,18 @@ GOOS=linux GOARCH=arm go build
 ```
 
 #### Directory Structure
-Symbolic links are created for each room with the name of the room, or the
-participant of the private chat.
 ```
 .
 └── server.org
     └── @account1:server.org
-        ├── !roomId:server.org
-        │   ├── in
-        │   ├── @account1:server.org
-        │   │   ├── message1
-        │   │   └── message2
-        │   └── @contact1:server.org
-        │       ├── message1
-        │       └── message2
-        └── @roomName:server.org -> ./server.org/@account1:server.org/!roomId:server.org
+        └─── !roomId:server.org
+            ├── in
+            ├── @account1:server.org
+            │   ├── message1
+            │   └── message2
+            └── @contact1:server.org
+                ├── message1
+                └── message2
 ```
 
 #### Usage

@@ -97,26 +97,13 @@ func sync(host string, sesh session, accPath string) {
 
 	for id, room := range d.Rooms.Join {
 		roomPath := path.Join(accPath, id)
-		_, stat := os.Stat(roomPath)
+		os.Mkdir(roomPath, 0700)
+
+		pipe := path.Join(roomPath, "in")
+		_, stat := os.Stat(pipe)
 		if os.IsNotExist(stat) {
-			/* Is there a better way to get the room name/member? */
-			os.Mkdir(roomPath, 0700)
-			pipe := path.Join(roomPath, "in")
 			syscall.Mkfifo(pipe, syscall.S_IFIFO|0600)
 			go readPipe(pipe, host, sesh.Token)
-
-			var name string
-			for _, ev := range room.State.Events {
-				if ev.Type == "m.room.name" {
-					name = ev.Content.Name
-					break
-				}
-				if ev.Type == "m.room.member" && ev.Sender != sesh.UserId {
-					name = ev.Sender
-					break
-				}
-			}
-			os.Symlink(roomPath, path.Join(accPath, name))
 		}
 		evs := &room.Timeline.Events
 		for _, ev := range *evs {
