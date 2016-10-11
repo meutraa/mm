@@ -28,7 +28,7 @@ by time).
 
 #### Notes
 I am not here to interperate trailing slashes and such so:
-* -s <host> must include a protocol ( http:// or https:// ) and have no trailing
+* -s <host> **must** include a protocol ( http:// or https:// ) and have no trailing
   slash. If the server includes a port, use server.name:port. For example,
 	`-s https://matrix.org`
 * -d <dir> will create that directory structure. In `-d $HOME/chat/matrix`, all
@@ -36,9 +36,9 @@ I am not here to interperate trailing slashes and such so:
 	servers are placed in the matrix folder. Do not include a trailing
 	slash.
 
-#### Install (from source)
+#### Install (or update)
 ```shell
-go get gitlab.com/meutraa/mm
+go get -u gitlab.com/meutraa/mm
 ```
 
 ###### Cross Compiling
@@ -86,6 +86,9 @@ cat `ls -1rt @*/*`
 
 #### Example Scripts
 **Edit the CONFIG sections for your account and setup.**
+Since these are the scripts I use, I will be keeping these
+up to date and I plan on making them more robust for others
+to use too.
 
 Script that displays a short history and all new messages.
 ```shell
