@@ -94,7 +94,7 @@ declare -A ROOMS
 declare -A NICK
 
 # START CONFIG
-cd "$HOME/mm/lost.host/@paul:lost.host" || exit
+cd "$HOME/mm/server.org/@account:server.org" || exit
 ROOMS=(
 ["roomId1:server.org"]="Room Name 1"
 ["roomId2:server.org"]="\033[1;31mRoom Name 2\033[0m"
