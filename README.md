@@ -16,11 +16,8 @@ by time).
 
 ###### Planned
 * Syncing all message history without gaps.
-* Swap exchange token for access token when access token expires.
 
 ###### Unsure
-* Should messages be sent by creating files under an in directory instead of a
-fifo pipe?
 * Different treatment for notice and emote type messages.
 * Automatic file, image, and audio downloads.
 * Redact / edit messages somehow.
@@ -94,12 +91,14 @@ setup.
 Simple script that displays a short history and all new messages.
 ```shell
 #/bin/sh
-# Run from inside an account directory.
+# Change this to your account directory.
+cd "$HOME/mm/server.org/@account:server.org"
+
 function friendly {
 	# These are optional if you want to be confused who you are talking to.
 	case "$@" in
-		#!roomId:server.org) echo name;;
-	*) echo "$@"
+		#!roomId:server.org)	echo name;;
+		*)			echo "$@"
 	esac
 }
 
@@ -109,7 +108,7 @@ function senders {
 	# So @contact:server.org would be just @contact
 	case "$@" in
 		#@contact)	echo name;;
-		*)		echo "$@";;
+		*)		echo "$@"
 	esac
 }
 
@@ -127,32 +126,31 @@ function message {
 }
 
 clear
-# Change this to your account directory.
-cd "$HOME/mm/server.org/@account:server.org"
 CUR_ROOM=""
 OLD_MSGS=(`ls -1rt */@*/* | tail -n 20`)
 for i in "${OLD_MSGS[@]}"; do message "$i"; done
-inotifywait -m -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm |
+inotifywait -m -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm | \
 while read MESSAGE; do
         message "$MESSAGE"
+	echo -e "\a"
 done
 ```
 
 And here is a dmenu script to send messages.
 ```shell
 #!/bin/sh
-function friendly {
-	# Change these to your room name mappings.
-	case "$@" in
-		#roomName1) echo !roomId1:server.org;;
-		#roomName2) echo !roomId2:server.org;;
-		*) echo "$@"
-	esac
-}
-
 # Change these to your preferences.
 cd "$HOME/mm/server.org/@account:server.org"
 FONT="Inconsalata:size=28"
+
+function friendly {
+	# Change these to your room name mappings.
+	case "$@" in
+		#roomName1)	echo !roomId1:server.org;;
+		#roomName2)	echo !roomId2:server.org;;
+		*)		echo "$@"
+	esac
+}
 
 # Add in any rooms here that you gave a friendly name.
 REC=`echo -e "roomName1\nroomName2" | dmenu -b -fn "$FONT"`

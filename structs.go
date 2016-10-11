@@ -46,10 +46,8 @@ type content struct {
 
 type session struct {
 	Token        string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
 	Homeserver   string `json:"home_server"`
 	UserId       string `json:"user_id"`
 	DeviceId     string `json:"device_id"`
 	CurrentBatch string
-	TxnId        int64
 }
