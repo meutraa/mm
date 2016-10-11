@@ -85,79 +85,71 @@ cat `ls -1rt @*/*`
 ```
 
 #### Example Scripts
-These will require you to edit the highlighted variables to work with your
-setup.
+**Edit the CONFIG sections for your account and setup.**
 
-Simple script that displays a short history and all new messages.
+Script that displays a short history and all new messages.
 ```shell
-#/bin/sh
-# Change this to your account directory.
-cd "$HOME/mm/server.org/@account:server.org"
+#!/bin/bash
+declare -A ROOMS
+declare -A NICK
 
-function friendly {
-	# These are optional if you want to be confused who you are talking to.
-	case "$@" in
-		#!roomId:server.org)	echo name;;
-		*)			echo "$@"
-	esac
-}
-
-# Nicknames
-function senders {
-	# Contact here is the fully qualified username without the server
-	# So @contact:server.org would be just @contact
-	case "$@" in
-		#@contact)	echo name;;
-		*)		echo "$@"
-	esac
-}
+# START CONFIG
+cd "$HOME/mm/lost.host/@paul:lost.host" || exit
+ROOMS=(
+["roomId1:server.org"]="Room Name 1"
+["roomId2:server.org"]="\033[1;31mRoom Name 2\033[0m"
+)
+# Do not include the :server.org in these.
+NICK=(
+["@contact1"]="nick1"
+["@contact2"]="\033[0;31mnick2\033[0m"
+)
+# END CONFIG
 
 function message {
-	FILE="!$(echo $@ | cut -d'!' -f2)"
-	ROOM=`friendly $(echo "$FILE" | cut -d'/' -f1)`
-	if [ "$ROOM" != "$CUR_ROOM" ]; then
-		CUR_ROOM="$ROOM"
-		echo -e "\n-- $CUR_ROOM -- "
-	fi
-	SENDER=`senders "$(echo $FILE | grep -o '\@[^\:]*')"`
-	UNIX_TIME=`stat -c "%Y" "$FILE"`
-	TIME=`date -d "@$UNIX_TIME" +%R`
-	echo -e "$TIME " "$SENDER\t" `cat "$FILE"`
+        FILE="!"$(echo "$@" | cut -d'!' -f2)
+        ROOM=${ROOMS[$(echo "$FILE" | cut -d'/' -f1)]}
+        if [ "$ROOM" != "$CUR_ROOM" ]; then
+                CUR_ROOM="$ROOM"
+                echo -e "\n-- $CUR_ROOM -- "
+        fi
+        SENDER=${NICK[$(echo "$FILE" | grep -o '\@[^\:]*')]}
+        UNIX_TIME=$(stat -c "%Y" "$FILE")
+        TIME=$(date -d "@$UNIX_TIME" +%R)
+        echo -e "\a$TIME  $SENDER\t $(cat "$FILE")"
 }
-
-clear
 CUR_ROOM=""
-OLD_MSGS=(`ls -1rt */@*/* | tail -n 20`)
+OLD_MSGS=($(ls -1rt \!*/@*/\$* | tail -n 40))
 for i in "${OLD_MSGS[@]}"; do message "$i"; done
-inotifywait -m -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm | \
-while read MESSAGE; do
+inotifywait -m -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm |
+while read -r MESSAGE; do
         message "$MESSAGE"
-	echo -e "\a"
 done
 ```
 
 And here is a dmenu script to send messages.
 ```shell
-#!/bin/sh
-# Change these to your preferences.
-cd "$HOME/mm/server.org/@account:server.org"
-FONT="Inconsalata:size=28"
+#!/bin/bash
+declare -A ROOM
 
-function friendly {
-	# Change these to your room name mappings.
-	case "$@" in
-		#roomName1)	echo !roomId1:server.org;;
-		#roomName2)	echo !roomId2:server.org;;
-		*)		echo "$@"
-	esac
-}
+# START CONFIG
+cd "$HOME/mm/server.org/@account:server.org" || exit
+FONT="Inconsolata:size=28"
+ROOM=(
+["roomName1"]="!roomId1:lost.host"
+["roomName2"]="!roomId2:lost.host"
+)
+# END CONFIG
 
-# Add in any rooms here that you gave a friendly name.
-REC=`echo -e "roomName1\nroomName2" | dmenu -b -fn "$FONT"`
+NAMES=""
+for k in "${!ROOM[@]}"; do
+        NAMES+="$k\n"
+done
+NAME=$(echo -e "$NAMES" | dmenu -b -fn "$FONT")
 if [ "$?" -ne 0 ]; then exit; fi
-MESSAGE=`echo "" | dmenu -b -fn "$FONT" -p "$REC"`
+MESSAGE=$(echo "" | dmenu -b -fn "$FONT" -p "$NAME")
 case $MESSAGE in
-	(*[![:blank:]]*) echo "$MESSAGE" > "`friendly $REC`/in";;
-	(*) exit
+        (*[![:blank:]]*) echo "$MESSAGE" > "${ROOM[$NAME]}/in";;
+        (*) exit
 esac
 ```
