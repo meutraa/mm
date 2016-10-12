@@ -111,6 +111,12 @@ ROOMS="!roomId1:server.org=roomName 1
 
 NICKS="@contact1:server.org=nickname1
 @account1:server.org=\033[0;37mme\033[0m"
+
+# This is whatever you feed `stat` to get the modification time in unix time.
+# This one is for GNU coreutils stat.
+STAT_PARAM="-c %Y"
+# If using OpenBSD, uncomment the next line. Note inotify is linux only.
+# STAT_PARAM="-f %m"
 # END CONFIG
 
 message() {
@@ -125,7 +131,7 @@ message() {
     SENDER=$(echo "$FILE" | cut -d'/' -f2)
     NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
     if [ -z "$NICK" ]; then NICK="$SENDER"; fi
-    UNIX_TIME=$(stat -c "%Y" "$FILE")
+    UNIX_TIME=$(stat "$STAT_PARAM" "$FILE")
     TIME=$(date -d "@$UNIX_TIME" +%R)
     printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
 }
