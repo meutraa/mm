@@ -1,4 +1,6 @@
 # mm (19311931)
+The [Matrix](https://matrix.org/) client that requires you to read to the bottom
+of this README.
 
 #### Features
 * Less than 200 lines of code.
@@ -18,9 +20,14 @@ by time).
 * Syncing all message history without gaps.
 
 ###### Unsure
+These are all up for discussion.
+
 * Different treatment for notice and emote type messages.
 * Automatic file, image, and audio downloads.
 * Redact / edit messages somehow.
+* Automatically accepting room invites.
+* A seperate program for sending room invites. Maybe.
+* Using the filter API to limit data sent.
 
 ###### Not Planned
 * More than 250 lines of code.
@@ -84,7 +91,7 @@ View all messages in room (newest last)
 cat `ls -1rt @*/*`
 ```
 
-#### Example Scripts
+#### Example POSIX shell scripts
 **Edit the CONFIG sections for your account and setup.**
 Since these are the scripts I use, I will be keeping these
 up to date and I plan on making them more robust for others
@@ -93,6 +100,7 @@ to use too.
 Script that displays a short history and all new messages.
 ```shell
 #!/bin/sh
+
 # START CONFIG
 cd "$HOME/mm/server.org/@account1:server.org" || exit
 
@@ -106,20 +114,20 @@ NICKS="@contact1:server.org=nickname1
 # END CONFIG
 
 message() {
-        FILE="!"$(echo "$@" | cut -d'!' -f2)
-        ROOMID=$(echo "$FILE" | cut -d'/' -f1)
-        ROOMNAME=$(echo "$ROOMS" | grep "$ROOMID" | cut -d'=' -f2)
-        if [ -z "$ROOMNAME" ]; then ROOMNAME="$ROOMID"; fi
-        if [ "$ROOMNAME" != "$CUR_ROOM" ]; then
-                CUR_ROOM="$ROOMNAME"
-                printf "\n-- $CUR_ROOM --\n"
-        fi
-        SENDER=$(echo "$FILE" | cut -d'/' -f2)
-        NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
-	if [ -z "$NICK" ]; then NICK="$SENDER"; fi
-        UNIX_TIME=$(stat -c "%Y" "$FILE")
-        TIME=$(date -d "@$UNIX_TIME" +%R)
-        printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
+    FILE="!"$(echo "$@" | cut -d'!' -f2)
+    ROOMID=$(echo "$FILE" | cut -d'/' -f1)
+    ROOMNAME=$(echo "$ROOMS" | grep "$ROOMID" | cut -d'=' -f2)
+    if [ -z "$ROOMNAME" ]; then ROOMNAME="$ROOMID"; fi
+    if [ "$ROOMNAME" != "$CUR_ROOM" ]; then
+    CUR_ROOM="$ROOMNAME"
+        printf "\n-- $CUR_ROOM --\n"
+    fi
+    SENDER=$(echo "$FILE" | cut -d'/' -f2)
+    NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
+    if [ -z "$NICK" ]; then NICK="$SENDER"; fi
+    UNIX_TIME=$(stat -c "%Y" "$FILE")
+    TIME=$(date -d "@$UNIX_TIME" +%R)
+    printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
 }
 CUR_ROOM=""
 
@@ -141,7 +149,6 @@ FONT="Inconsolata:size=28"
 # To add a room to dmenu add it with a name to this variable. Required this time.
 ALIASES="roomName1=!roomId1:server.org
 roomName2=!roomId2:server.org"
-
 # END CONFIG
 
 NAMES=$(echo "$ALIASES" | cut -d'=' -f$(seq -s, 1 2 100))
