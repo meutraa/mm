@@ -132,27 +132,25 @@ done
 
 And here is a dmenu script to send messages.
 ```shell
-#!/bin/bash
-declare -A ROOM
+#!/bin/sh
 
 # START CONFIG
-cd "$HOME/mm/server.org/@account:server.org" || exit
+cd "$HOME/mm/server.org/@account:tserver.org" || exit
 FONT="Inconsolata:size=28"
-ROOM=(
-["roomName1"]="!roomId1:lost.host"
-["roomName2"]="!roomId2:lost.host"
-)
+
+# To add a room to dmenu add it with a name to this variable.
+ALIASES="roomName1=!roomId1:server.org
+roomName2=!roomId2:server.org"
+
 # END CONFIG
 
-NAMES=""
-for k in "${!ROOM[@]}"; do
-        NAMES+="$k\n"
-done
-NAME=$(echo -e "$NAMES" | dmenu -b -fn "$FONT")
+NAMES=$(echo "$ALIASES" | cut -d'=' -f$(seq -s, 1 2 100))
+NAME=$(echo "$NAMES" | dmenu -b -fn "$FONT")
 if [ "$?" -ne 0 ]; then exit; fi
+ROOMID=$(echo "$ALIASES" | grep "$NAME" | cut -d'=' -f2)
 MESSAGE=$(echo "" | dmenu -b -fn "$FONT" -p "$NAME")
 case $MESSAGE in
-        (*[![:blank:]]*) echo "$MESSAGE" > "${ROOM[$NAME]}/in";;
-        (*) exit
+    (*[![:blank:]]*) echo "$MESSAGE" > "$ROOMID/in";;
+    (*) exit
 esac
 ```
