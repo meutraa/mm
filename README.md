@@ -92,38 +92,38 @@ to use too.
 
 Script that displays a short history and all new messages.
 ```shell
-#!/bin/bash
-declare -A ROOMS
-declare -A NICK
-
+#!/bin/sh
 # START CONFIG
-cd "$HOME/mm/server.org/@account:server.org" || exit
-ROOMS=(
-["roomId1:server.org"]="Room Name 1"
-["roomId2:server.org"]="\033[1;31mRoom Name 2\033[0m"
-)
-# Do not include the :server.org in these.
-NICK=(
-["@contact1"]="nick1"
-["@contact2"]="\033[0;31mnick2\033[0m"
-)
+cd "$HOME/mm/server.org/@account1:server.org" || exit
+
+# Filling ROOMS and NICKS in with your account and contact detail is optional
+# but who does not want short room names and nicknames?
+ROOMS="!roomId1:server.org=roomName 1
+!roomId2:server.org=\033[1;31mroomName 2\033[0m"
+
+NICKS="@contact1:server.org=nickname1
+@account1:server.org=\033[0;37mme\033[0m"
 # END CONFIG
 
-function message {
+message() {
         FILE="!"$(echo "$@" | cut -d'!' -f2)
-        ROOM=${ROOMS[$(echo "$FILE" | cut -d'/' -f1)]}
-        if [ "$ROOM" != "$CUR_ROOM" ]; then
-                CUR_ROOM="$ROOM"
-                echo -e "\n-- $CUR_ROOM -- "
+        ROOMID=$(echo "$FILE" | cut -d'/' -f1)
+        ROOMNAME=$(echo "$ROOMS" | grep "$ROOMID" | cut -d'=' -f2)
+        if [ -z "$ROOMNAME" ]; then ROOMNAME="$ROOMID"; fi
+        if [ "$ROOMNAME" != "$CUR_ROOM" ]; then
+                CUR_ROOM="$ROOMNAME"
+                printf "\n-- $CUR_ROOM --\n"
         fi
-        SENDER=${NICK[$(echo "$FILE" | grep -o '\@[^\:]*')]}
+        SENDER=$(echo "$FILE" | cut -d'/' -f2)
+        NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
+	if [ -z "$NICK" ]; then NICK="$SENDER"; fi
         UNIX_TIME=$(stat -c "%Y" "$FILE")
         TIME=$(date -d "@$UNIX_TIME" +%R)
-        echo -e "\a$TIME  $SENDER\t $(cat "$FILE")"
+        printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
 }
 CUR_ROOM=""
-OLD_MSGS=($(ls -1rt \!*/@*/\$* | tail -n 40))
-for i in "${OLD_MSGS[@]}"; do message "$i"; done
+
+for i in $(ls -1rt \!*/@*/\$* | tail -n 40); do message "$i"; done
 inotifywait -m -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm |
 while read -r MESSAGE; do
         message "$MESSAGE"
@@ -138,7 +138,7 @@ And here is a dmenu script to send messages.
 cd "$HOME/mm/server.org/@account:tserver.org" || exit
 FONT="Inconsolata:size=28"
 
-# To add a room to dmenu add it with a name to this variable.
+# To add a room to dmenu add it with a name to this variable. Required this time.
 ALIASES="roomName1=!roomId1:server.org
 roomName2=!roomId2:server.org"
 
