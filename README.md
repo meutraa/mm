@@ -162,7 +162,7 @@ ALIASES="roomName1=!roomId1:server.org
 roomName2=!roomId2:server.org"
 # END CONFIG
 
-NAMES=$(echo "$ALIASES" | cut -d'=' -f$(seq -s, 1 2 100))
+NAMES=$(echo "$ALIASES" | cut -d'=' -f1)
 NAME=$(echo "$NAMES" | dmenu -b -fn "$FONT")
 if [ "$?" -ne 0 ]; then exit; fi
 ROOMID=$(echo "$ALIASES" | grep "$NAME" | cut -d'=' -f2)
