@@ -91,15 +91,20 @@ View all messages in room (newest last)
 cat `ls -1rt @*/*`
 ```
 
-#### Example POSIX shell scripts
+#### Example shell scripts
 **Edit the CONFIG sections for your account and setup.**
 Since these are the scripts I use, I will be keeping these
 up to date and I plan on making them more robust for others
 to use too.
 
 Script that displays a short history and all new messages.
+
+**To get new messages printing read the instructions at the top of this script.**
 ```shell
 #!/bin/sh
+# To avoid using inotify, mm outputs all newly written messages to stdout. Pipe
+# the stdout of mm to /tmp/mmout and this script will print new messages.
+# mm -s https://server.org -u user -p pass 1>> /tmp/mmout &
 
 # START CONFIG
 cd "$HOME/mm/server.org/@account1:server.org" || exit
@@ -138,7 +143,7 @@ message() {
 CUR_ROOM=""
 
 for i in $(ls -1rt \!*/@*/\$* | tail -n 40); do message "$i"; done
-inotifywait -m -q -e close_write --exclude ".*\/in" -r --format '%w%f' ~/mm |
+tail -f /tmp/mmout |
 while read -r MESSAGE; do
         message "$MESSAGE"
 done
