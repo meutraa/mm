@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"os/user"
@@ -69,7 +70,7 @@ func readPipe(pipe string, host string, token string) {
 	for {
 		str, err := ioutil.ReadFile(pipe)
 		if nil != err {
-			fmt.Println("Could not read message:", roomId, err)
+			log.Println("Could not read message:", roomId, err)
 			continue
 		}
 
@@ -77,7 +78,7 @@ func readPipe(pipe string, host string, token string) {
 		b, _ := json.Marshal(message{string(str), "m.text"})
 		url := "rooms/" + roomId + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
 		req, _ := http.NewRequest("PUT", apistr(host, url, token), bytes.NewBuffer(b))
-		fmt.Println(string(readBody(http.DefaultClient.Do(req))))
+		log.Println(string(readBody(http.DefaultClient.Do(req))))
 	}
 }
 
@@ -87,6 +88,7 @@ func sync(host string, sesh session, accPath string) string {
 		str += "since=" + sesh.CurrentBatch + "&"
 	}
 	body := readBody(http.Get(apistr(host, str, sesh.Token)))
+	log.Println(string(body))
 
 	var d data
 	if json.Unmarshal(body, &d) != nil || d.NextBatch == "" {
@@ -119,12 +121,13 @@ func sync(host string, sesh session, accPath string) string {
 
 				t := time.Unix(e.Timestamp/1000, 1000*(e.Timestamp%1000))
 				os.Chtimes(file, t, t)
+				fmt.Println(file)
 			}
 		}
 		/* Send a read receipt. */
 		if lastId != "" {
 			url := "rooms/" + id + "/receipt/m.read/" + lastId + "?"
-			readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))
+			log.Println(string(readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))))
 		}
 	}
 	return d.NextBatch
@@ -134,7 +137,7 @@ func readBody(res *http.Response, err error) []byte {
 	defer res.Body.Close()
 	body, _ := ioutil.ReadAll(res.Body)
 	if err != nil || res.StatusCode != 200 {
-		fmt.Println(err, res.StatusCode, http.StatusText(res.StatusCode), string(body))
+		log.Println(err, res.StatusCode, http.StatusText(res.StatusCode), string(body))
 	}
 	return body
 }
