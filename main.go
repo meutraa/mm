@@ -123,7 +123,7 @@ func sync(host string, sesh session, accPath string) string {
 				s := strings.TrimSpace(e.Content.Body + " " + e.Content.Url + " " + e.Content.GeoUri)
 				ioutil.WriteFile(file, []byte(s+"\n"), 0644)
 
-				t := time.Unix((e.Timestamp/1000)-1, 0)
+				t := time.Unix((e.Timestamp/1000)-5, 0)
 				os.Chtimes(file, t, t)
 				fmt.Println(file)
 			}
