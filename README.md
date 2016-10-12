@@ -90,20 +90,15 @@ View all messages in room (newest last)
 cat `ls -1rt @*/*`
 ```
 
-#### Example shell scripts
-**Edit the CONFIG sections for your account and setup.**
-Since these are the scripts I use, I will be keeping these
-up to date and I plan on making them more robust for others
-to use too.
+#### Example POSIX shell scripts
+**Make sure to read and edit the config blocks.**
 
 Script that displays a short history and all new messages.
-
-**To get new messages printing read the instructions at the top of this script.**
 ```shell
 #!/bin/sh
-# To avoid using inotify, mm outputs all newly written messages to stdout. Pipe
-# the stdout of mm to /tmp/mmout and this script will print new messages.
-# mm -s https://server.org -u user -p pass 1>> /tmp/mmout &
+# mm outputs all newly written messages to stdout. Pipe stdout from mm to
+# /tmp/mmout and this script will print new messages.
+# mm -s https://server.org -u user -p pass 2>> ~/.mmerr 1>> /tmp/mmout &
 
 # START CONFIG
 cd "$HOME/mm/server.org/@account1:server.org" || exit
@@ -116,11 +111,6 @@ ROOMS="!roomId1:server.org=roomName 1
 NICKS="@contact1:server.org=nickname1
 @account1:server.org=\033[0;37mme\033[0m"
 
-# This is whatever you feed `stat` to get the modification time in unix time.
-# This one is for GNU coreutils stat.
-STAT_PARAM="-c %Y"
-# If using OpenBSD, uncomment the next line. Note inotify is linux only.
-# STAT_PARAM="-f %m"
 # END CONFIG
 
 message() {
@@ -129,14 +119,13 @@ message() {
     ROOMNAME=$(echo "$ROOMS" | grep "$ROOMID" | cut -d'=' -f2)
     if [ -z "$ROOMNAME" ]; then ROOMNAME="$ROOMID"; fi
     if [ "$ROOMNAME" != "$CUR_ROOM" ]; then
-    CUR_ROOM="$ROOMNAME"
+        CUR_ROOM="$ROOMNAME"
         printf "\n-- $CUR_ROOM --\n"
     fi
     SENDER=$(echo "$FILE" | cut -d'/' -f2)
     NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
     if [ -z "$NICK" ]; then NICK="$SENDER"; fi
-    UNIX_TIME=$(stat "$STAT_PARAM" "$FILE")
-    TIME=$(date -d "@$UNIX_TIME" +%R)
+    TIME=$(ls -l "$FILE" | awk '{ print $8 }')
     printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
 }
 CUR_ROOM=""
@@ -149,12 +138,12 @@ while read -r MESSAGE; do
 done
 ```
 
-And here is a dmenu script to send messages.
+And here is a dmenu script to send messages. Obviously dmenu is not POSIX.
 ```shell
 #!/bin/sh
 
 # START CONFIG
-cd "$HOME/mm/server.org/@account:tserver.org" || exit
+cd "$HOME/mm/server.org/@account:server.org" || exit
 FONT="Inconsolata:size=28"
 
 # To add a room to dmenu add it with a name to this variable. Required this time.
