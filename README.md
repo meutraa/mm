@@ -143,6 +143,7 @@ message() {
 CUR_ROOM=""
 
 for i in $(ls -1rt \!*/@*/\$* | tail -n 40); do message "$i"; done
+rm /tmp/mmout
 tail -f /tmp/mmout |
 while read -r MESSAGE; do
         message "$MESSAGE"

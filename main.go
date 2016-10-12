@@ -134,10 +134,17 @@ func sync(host string, sesh session, accPath string) string {
 }
 
 func readBody(res *http.Response, err error) []byte {
+	if nil == res {
+		return []byte("")
+	}
 	defer res.Body.Close()
-	body, _ := ioutil.ReadAll(res.Body)
 	if err != nil || res.StatusCode != 200 {
-		log.Println(err, res.StatusCode, http.StatusText(res.StatusCode), string(body))
+		log.Println(err, res.StatusCode, http.StatusText(res.StatusCode))
+		return []byte("")
+	}
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Println(err)
 	}
 	return body
 }
