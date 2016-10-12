@@ -58,7 +58,7 @@ func main() {
 	}
 
 	/* Sync loop. */
-	for ; ; time.Sleep(5 * time.Second) {
+	for {
 		sesh.CurrentBatch = sync(host.String(), sesh, accPath)
 	}
 
@@ -90,7 +90,7 @@ func readPipe(pipe string, host string, token string) {
 func sync(host string, sesh session, accPath string) string {
 	str := "sync?"
 	if sesh.CurrentBatch != "" {
-		str += "since=" + sesh.CurrentBatch + "&"
+		str += "since=" + sesh.CurrentBatch + "&timeout=30000&"
 	}
 	body, _ := readBody(http.Get(apistr(host, str, sesh.Token)))
 
