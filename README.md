@@ -34,10 +34,10 @@ These are all up for discussion.
 * Presence status other than online, such as idle.
 
 #### Notes
-I am not here to interperate trailing slashes and such so:
-* -s <host> **must** include a protocol ( http:// or https:// ) and have no trailing
-  slash. If the server includes a port, use server.name:port. For example,
-	`-s https://matrix.org`
+* -s <host> [scheme://]host[:port][/path]
+* Scheme, port, and path are optional.
+* Will assume https if no scheme is provided.
+
 * -d <dir> will create that directory structure. In `-d $HOME/chat/matrix`, all
 	directories in this path will be created if they do not exist, and
 	servers are placed in the matrix folder. Do not include a trailing

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"path"
@@ -21,22 +22,26 @@ const Json = "application/json"
 
 func main() {
 	usr, _ := user.Current()
-	var host, username, pass, accPath string
-	flag.StringVar(&host, "s", "", "homeserver url <https://matrix.org>")
+	var server, username, pass, accPath string
+	flag.StringVar(&server, "s", "", "homeserver url <https://matrix.org>")
 	flag.StringVar(&username, "u", "", "not full qualified username <bob>")
 	flag.StringVar(&pass, "p", "", "password <pass1234>")
 	flag.StringVar(&accPath, "d", usr.HomeDir+"/mm", "directory path")
 	flag.Parse()
 
-	if host == "" || username == "" || pass == "" {
+	host, err := url.Parse(server)
+	if server == "" || username == "" || pass == "" || err != nil {
 		flag.PrintDefaults()
 		os.Exit(2)
+	}
+	if host.Scheme == "" {
+		host.Scheme = "https"
 	}
 
 	/* Account login and setup. */
 	var sesh session
 	b, _ := json.Marshal(auth{"m.login.password", username, pass})
-	body, _ := readBody(http.Post(host+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
+	body, _ := readBody(http.Post(host.String()+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
 	json.Unmarshal(body, &sesh)
 	if sesh.Token == "" {
 		os.Exit(1)
@@ -48,17 +53,17 @@ func main() {
 	rooms, _ := ioutil.ReadDir(accPath)
 	for _, v := range rooms {
 		if strings.HasPrefix(v.Name(), "!") {
-			go readPipe(path.Join(accPath, v.Name(), "in"), host, sesh.Token)
+			go readPipe(path.Join(accPath, v.Name(), "in"), host.String(), sesh.Token)
 		}
 	}
 
 	/* Sync loop. */
 	for ; ; time.Sleep(5 * time.Second) {
-		sesh.CurrentBatch = sync(host, sesh, accPath)
+		sesh.CurrentBatch = sync(host.String(), sesh, accPath)
 	}
 
 	/* Revoke access_token. */
-	http.Post(apistr(host, "logout?", sesh.Token), Json, nil)
+	http.Post(apistr(host.RawPath, "logout?", sesh.Token), Json, nil)
 }
 
 func apistr(host string, call string, token string) string {
