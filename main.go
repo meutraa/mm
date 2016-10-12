@@ -36,7 +36,7 @@ func main() {
 	/* Account login and setup. */
 	var sesh session
 	b, _ := json.Marshal(auth{"m.login.password", username, pass})
-	body := readBody(http.Post(host+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
+	body, _ := readBody(http.Post(host+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
 	json.Unmarshal(body, &sesh)
 	if sesh.Token == "" {
 		os.Exit(1)
@@ -69,8 +69,8 @@ func readPipe(pipe string, host string, token string) {
 	roomId := path.Base(path.Dir(pipe))
 	for {
 		str, err := ioutil.ReadFile(pipe)
-		if nil != err {
-			log.Println("Could not read message:", roomId, err)
+		if err != nil {
+			log.Println("Could not read message:", pipe, roomId, err)
 			continue
 		}
 
@@ -78,7 +78,7 @@ func readPipe(pipe string, host string, token string) {
 		b, _ := json.Marshal(message{string(str), "m.text"})
 		url := "rooms/" + roomId + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
 		req, _ := http.NewRequest("PUT", apistr(host, url, token), bytes.NewBuffer(b))
-		log.Println(string(readBody(http.DefaultClient.Do(req))))
+		readBody(http.DefaultClient.Do(req))
 	}
 }
 
@@ -87,8 +87,7 @@ func sync(host string, sesh session, accPath string) string {
 	if sesh.CurrentBatch != "" {
 		str += "since=" + sesh.CurrentBatch + "&"
 	}
-	body := readBody(http.Get(apistr(host, str, sesh.Token)))
-	log.Println(string(body))
+	body, _ := readBody(http.Get(apistr(host, str, sesh.Token)))
 
 	var d data
 	if json.Unmarshal(body, &d) != nil || d.NextBatch == "" {
@@ -127,24 +126,22 @@ func sync(host string, sesh session, accPath string) string {
 		/* Send a read receipt. */
 		if lastId != "" {
 			url := "rooms/" + id + "/receipt/m.read/" + lastId + "?"
-			log.Println(string(readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))))
+			readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))
 		}
 	}
 	return d.NextBatch
 }
 
-func readBody(res *http.Response, err error) []byte {
-	if nil == res {
-		return []byte("")
-	}
-	defer res.Body.Close()
-	if err != nil || res.StatusCode != 200 {
-		log.Println(err, res.StatusCode, http.StatusText(res.StatusCode))
-		return []byte("")
-	}
-	body, err := ioutil.ReadAll(res.Body)
+func readBody(res *http.Response, err error) ([]byte, error) {
 	if err != nil {
 		log.Println(err)
+		return []byte(""), err
 	}
-	return body
+	/* Body always non-nil when err == nil. */
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil || res.StatusCode != 200 {
+		log.Println(err, res.StatusCode, http.StatusText(res.StatusCode))
+	}
+	return body, err
 }
