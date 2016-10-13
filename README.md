@@ -130,7 +130,8 @@ message() {
         NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
         if [ -z "$NICK" ]; then NICK="$SENDER"; fi
         TIME=$(ls -l "$FILE" | awk '{ print $8 }')
-        printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
+	MESSAGE=$(cat "$FILE" | sed 's/%/%%/g')
+	printf "\a$TIME  $NICK\t $MESSAGE\n"
     done
 }
 
