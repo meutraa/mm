@@ -5,7 +5,7 @@ of this README.
 If you do not want a gitlab account but have problems or suggestions,
 send an email to my gmail address: bendypauldron
 
-#### Features
+### Features
 * Less than 250 lines of code.
 * Fetching last ten messages of each room on start.
 * Receiving messages by long polling sync call.
@@ -22,34 +22,12 @@ message.
 ###### Planned
 * Syncing all message history without gaps.
 
-###### Unsure
-These are all up for discussion.
-
-* Different treatment for notice and emote type messages.
-* Automatic file, image, and audio downloads.
-* Redact / edit messages somehow.
-* Automatically accepting room invites.
-* A seperate program for sending room invites. Maybe.
-* Using the filter API to limit data sent.
-
-###### Not Planned
-* Presence status other than online, such as idle.
-
-#### Notes
-* -s <host> `[scheme://]host[:port][/path]`
-* Scheme, port, and path are optional.
-* Will assume https if no scheme is provided.
-* -d <dir> will create that directory structure. In `-d $HOME/chat/matrix`, all
-	directories in this path will be created if they do not exist, and
-	servers are placed in the matrix folder. Do not include a trailing
-	slash.
-
-#### Install (or update)
+### Install (or update)
 ```shell
 go get -u gitlab.com/meutraa/mm
 ```
 
-###### Cross Compiling
+##### Cross Compiling
 See https://golang.org/doc/install/source#environment for GOOS and GOARCH combinations.
 ```shell
 git clone git@gitlab.com:meutraa/mm.git
@@ -57,8 +35,7 @@ cd mm
 GOOS=linux GOARCH=arm go build
 ```
 
-#### Directory Structure
-Structure works with multiple servers and accounts.
+### Directory Structure
 ```
 .
 └── server.org
@@ -71,14 +48,14 @@ Structure works with multiple servers and accounts.
                 └── $messageId:server.org
 ```
 
-#### Usage
+### Usage
 ls, tail, cat, find, and echo are your best friends.
 
 ```shell
-mm [-d dir] -s https://host[:port] -u user -p password
+mm [-d dir] -s [scheme://]host[:port][/path] -u user -p password
 
 Examples:
-mm -s https://matrix.org -u bob -p 1234
+mm -s matrix.org -u bob -p 1234
 mm -d "$HOME/chat/mm" -s http://localhost:8008 -u "$USER" -p pass
 ```
 
@@ -87,15 +64,10 @@ Send message to room
 echo "message" > in
 ```
 
-View all messages in room (newest last)
-```shell
-cat `ls -1rt @*/*`
-```
+## mchat
+This is a POSIX system mm client, the one I use.
 
-#### Example POSIX shell scripts
 **Make sure to read and edit the config blocks.**
-
-Script that displays a short history and all new messages.
 ```shell
 #!/bin/sh
 # mm outputs all newly written messages to stdout. Write stdout to  a file and
@@ -138,6 +110,7 @@ ls -1rt \!*/@*/\$* | tail -n 40 | message
 tail -n 0 -f "$MMOUT" | message
 ```
 
+## dmmsg
 And here is a dmenu script to send messages. Obviously dmenu is not POSIX.
 ```shell
 #!/bin/sh
