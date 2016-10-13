@@ -3,9 +3,9 @@ The [Matrix](https://matrix.org/) client that requires you to read to the bottom
 of this README.
 
 #### Features
-* Less than 200 lines of code.
+* Less than 250 lines of code.
 * Fetching last ten messages of each room on start.
-* Receiving messages.
+* Receiving messages by long polling sync call.
 * Sending messages through named pipes.
 * Marking latest event as read (the recommendation to only mark this
 as read when the user has read the message seems iffy here. An IMAP type tagging
@@ -13,8 +13,8 @@ system could work, but would be as complex as the program itself). At least
 this way, users of other clients will know your computer has recieved the
 message.
 * Online presence.
-* Message modification time set to message timestamp (allows system ordering
-by time).
+* Message modification time set to message timestamp minus five seconds.
+* List of new messages (file paths) written to stdout
 
 ###### Planned
 * Syncing all message history without gaps.
@@ -30,7 +30,6 @@ These are all up for discussion.
 * Using the filter API to limit data sent.
 
 ###### Not Planned
-* More than 250 lines of code.
 * Presence status other than online, such as idle.
 
 #### Notes
@@ -96,11 +95,12 @@ cat `ls -1rt @*/*`
 Script that displays a short history and all new messages.
 ```shell
 #!/bin/sh
-# mm outputs all newly written messages to stdout. Pipe stdout from mm to
-# /tmp/mmout and this script will print new messages.
-# mm -s https://server.org -u user -p pass 2>> ~/.mmerr 1>> /tmp/mmout &
+# mm outputs all newly written messages to stdout. Write stdout to  a file and
+# set $MMOUT to that file and this script will print new messages.
+# mm -s https://server.org -u user -p pass 2>> ~/mm/log 1>> ~/mm/out &
 
 # START CONFIG
+MMOUT="$HOME/mm/out"
 cd "$HOME/mm/server.org/@account1:server.org" || exit
 
 # Filling ROOMS and NICKS in with your account and contact detail is optional
@@ -131,8 +131,7 @@ message() {
 CUR_ROOM=""
 
 for i in $(ls -1rt \!*/@*/\$* | tail -n 40); do message "$i"; done
-cp /dev/null /tmp/mmout
-tail -f /tmp/mmout |
+tail -n 0 -f "$MMOUT" |
 while read -r MESSAGE; do
         message "$MESSAGE"
 done
