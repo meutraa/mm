@@ -2,6 +2,9 @@
 The [Matrix](https://matrix.org/) client that requires you to read to the bottom
 of this README.
 
+If you do not want a gitlab account but have problems or suggestions,
+send an email to my gmail address: bendypauldron
+
 #### Features
 * Less than 250 lines of code.
 * Fetching last ten messages of each room on start.
