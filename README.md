@@ -110,31 +110,29 @@ ROOMS="!roomId1:server.org=roomName 1
 
 NICKS="@contact1:server.org=nickname1
 @account1:server.org=\033[0;37mme\033[0m"
-
 # END CONFIG
 
-message() {
-    FILE="!"$(echo "$@" | cut -d'!' -f2)
-    ROOMID=$(echo "$FILE" | cut -d'/' -f1)
-    ROOMNAME=$(echo "$ROOMS" | grep "$ROOMID" | cut -d'=' -f2)
-    if [ -z "$ROOMNAME" ]; then ROOMNAME="$ROOMID"; fi
-    if [ "$ROOMNAME" != "$CUR_ROOM" ]; then
-        CUR_ROOM="$ROOMNAME"
-        printf "\n-- $CUR_ROOM --\n"
-    fi
-    SENDER=$(echo "$FILE" | cut -d'/' -f2)
-    NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
-    if [ -z "$NICK" ]; then NICK="$SENDER"; fi
-    TIME=$(ls -l "$FILE" | awk '{ print $8 }')
-    printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
-}
 CUR_ROOM=""
+message() {
+    while read -r MSG; do
+        FILE="!"$(echo "$MSG" | cut -d'!' -f2)
+        ROOMID=$(echo "$FILE" | cut -d'/' -f1)
+        ROOM=$(echo "$ROOMS" | grep "$ROOMID" | cut -d'=' -f2)
+        if [ -z "$ROOM" ]; then ROOM="$ROOMID"; fi
+        if [ "$ROOM" != "$CUR_ROOM" ]; then
+            CUR_ROOM="$ROOM"
+            printf "\n-- $ROOM --\n"
+        fi
+        SENDER=$(echo "$FILE" | cut -d'/' -f2)
+        NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
+        if [ -z "$NICK" ]; then NICK="$SENDER"; fi
+        TIME=$(ls -l "$FILE" | awk '{ print $8 }')
+        printf "\a$TIME  $NICK\t $(cat "$FILE")\n"
+    done
+}
 
-for i in $(ls -1rt \!*/@*/\$* | tail -n 40); do message "$i"; done
-tail -n 0 -f "$MMOUT" |
-while read -r MESSAGE; do
-        message "$MESSAGE"
-done
+ls -1rt \!*/@*/\$* | tail -n 40 | message
+tail -n 0 -f "$MMOUT" | message
 ```
 
 And here is a dmenu script to send messages. Obviously dmenu is not POSIX.
