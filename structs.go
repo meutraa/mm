@@ -42,6 +42,14 @@ type content struct {
 	Name   string `json:"name"`
 	Url    string `json:"url"`
 	GeoUri string `json:"geo_uri"`
+	FileInfo info `json:"info"`
+}
+
+type info struct {
+	Height int `json:"h"`
+	Width int `json:"w"`
+	Size int `json:"size"`
+	MimeType string `json:"mimetype"`
 }
 
 type session struct {
