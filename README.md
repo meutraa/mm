@@ -87,26 +87,31 @@ NICKS="@contact1:server.org=nickname1
 @account1:server.org=\033[0;37mme\033[0m"
 # END CONFIG
 
-CUR_ROOM=""
 message() {
     while read -r MSG; do
+        if [ $(echo "$MSG" | grep -c "$SINGLE") -eq 0 ]; then continue; fi
         FILE="!"$(echo "$MSG" | cut -d'!' -f2)
         ROOMID=$(echo "$FILE" | cut -d'/' -f1)
         ROOM=$(echo "$ROOMS" | grep "$ROOMID" | cut -d'=' -f2)
         if [ -z "$ROOM" ]; then ROOM="$ROOMID"; fi
-        if [ "$ROOM" != "$CUR_ROOM" ]; then
-            CUR_ROOM="$ROOM"
-            printf "\n-- $ROOM --\n"
-        fi
         SENDER=$(echo "$FILE" | cut -d'/' -f2)
         NICK=$(echo "$NICKS" | grep "$SENDER" | cut -d'=' -f2)
         if [ -z "$NICK" ]; then NICK="$SENDER"; fi
+        DATE=$(ls -l "$FILE" | awk '{ print $6" "$7 }')
+        if [ "$DATE" != "$CDATE" ]; then printf "\n-- $ROOM ($DATE) --\n";
+        elif [ "$ROOM" != "$CROOM" ]; then printf "\n-- $ROOM --\n"; fi
+        CDATE="$DATE"
+        CROOM="$ROOM"
         TIME=$(ls -l "$FILE" | awk '{ print $8 }')
         printf "\a%s  $NICK\t %s\n" "$TIME" "$(cat "$FILE")"
     done
 }
 
-ls -1rt \!*/@*/\$* | tail -n 40 | message
+if [ -n "$1" ]; then
+    SINGLE=$(echo "$ROOMS" | grep "$1" | cut -d'=' -f1)
+fi
+
+ls -1rt $SINGLE*/@*/\$* | tail -n 40 | message
 tail -n 0 -f "$MMOUT" | message
 ```
 
