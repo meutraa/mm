@@ -123,14 +123,14 @@ func sync(host string, sesh session, accPath string) string {
 				continue
 			}
 			s := e.Content.Body
-			switch(e.Content.Type) {
+			switch e.Content.Type {
 			case "m.image", "m.video", "m.file", "m.audio":
 				f := e.Content.FileInfo
 				s = host + "/_matrix/media/r0/download/" + strings.TrimPrefix(e.Content.Url, "mxc://") + " (" + f.MimeType
 				if e.Content.Type == "m.image" || e.Content.Type == "m.video" {
 					s += " " + strconv.Itoa(f.Height) + "x" + strconv.Itoa(f.Width)
 				}
-				s += " " + strconv.Itoa(f.Size >> 10) + "KiB)"
+				s += " " + strconv.Itoa(f.Size>>10) + "KiB)"
 			case "m.location":
 				s += " " + e.Content.GeoUri
 			}
