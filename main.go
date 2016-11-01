@@ -92,7 +92,11 @@ func sync(host string, sesh session, accPath string) string {
 	if sesh.CurrentBatch != "" {
 		str += "since=" + sesh.CurrentBatch + "&timeout=30000&"
 	}
-	body, _ := readBody(http.Get(apistr(host, str, sesh.Token)))
+	body, err:= readBody(http.Get(apistr(host, str, sesh.Token)))
+	if err != nil {
+		time.Sleep(time.Second * 10)
+		return sesh.CurrentBatch
+	}
 
 	var d data
 	if json.Unmarshal(body, &d) != nil || d.NextBatch == "" {
