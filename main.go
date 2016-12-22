@@ -63,7 +63,7 @@ func main() {
 	}
 
 	/* Revoke access_token. */
-	http.Post(apistr(host.String(), "logout?", sesh.Token), Json, nil)
+	defer http.Post(apistr(host.String(), "logout?", sesh.Token), Json, nil)
 }
 
 func apistr(host string, call string, token string) string {
