@@ -18,8 +18,6 @@ import (
 	"time"
 )
 
-const Json = "application/json"
-
 func main() {
 	usr, _ := user.Current()
 	var server, username, pass, accPath string
@@ -40,8 +38,12 @@ func main() {
 
 	/* Account login and setup. */
 	var sesh session
+	/* Empty get request to give time to ACK http2 settings. */
+	http.DefaultClient.Get(host.String())
 	b, _ := json.Marshal(auth{"m.login.password", username, pass})
-	body, _ := readBody(http.Post(host.String()+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
+	req, _ := http.NewRequest("POST", host.String()+"/_matrix/client/r0/login", bytes.NewBuffer(b))
+	resp, err := http.DefaultClient.Do(req)
+	body, _ := readBody(resp, err)
 	json.Unmarshal(body, &sesh)
 	if sesh.Token == "" {
 		os.Exit(1)
@@ -63,7 +65,7 @@ func main() {
 	}
 
 	/* Revoke access_token. */
-	http.Post(apistr(host.String(), "logout?", sesh.Token), Json, nil)
+	http.DefaultClient.Post(apistr(host.String(), "logout?", sesh.Token), "", nil)
 }
 
 func apistr(host string, call string, token string) string {
@@ -71,17 +73,17 @@ func apistr(host string, call string, token string) string {
 }
 
 func readPipe(pipe string, host string, token string) {
-	roomId := path.Base(path.Dir(pipe))
+	roomID := path.Base(path.Dir(pipe))
 	for {
 		str, err := ioutil.ReadFile(pipe)
 		if err != nil {
-			log.Println("Could not read message:", pipe, roomId, err)
+			log.Println("Could not read message:", pipe, roomID, err)
 			continue
 		}
 
 		/* Send a message. */
 		b, _ := json.Marshal(message{string(str), "m.text"})
-		url := "rooms/" + roomId + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
+		url := "rooms/" + roomID + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
 		req, _ := http.NewRequest("PUT", apistr(host, url, token), bytes.NewBuffer(b))
 		readBody(http.DefaultClient.Do(req))
 	}
@@ -92,7 +94,7 @@ func sync(host string, sesh session, accPath string) string {
 	if sesh.CurrentBatch != "" {
 		str += "since=" + sesh.CurrentBatch + "&timeout=30000&"
 	}
-	body, err:= readBody(http.Get(apistr(host, str, sesh.Token)))
+	body, err := readBody(http.Get(apistr(host, str, sesh.Token)))
 	if err != nil {
 		time.Sleep(time.Second * 10)
 		return sesh.CurrentBatch
@@ -113,9 +115,9 @@ func sync(host string, sesh session, accPath string) string {
 			syscall.Mkfifo(pipe, syscall.S_IFIFO|0600)
 			go readPipe(pipe, host, sesh.Token)
 		}
-		var lastId string
+		var lastID string
 		for _, e := range room.Timeline.Events {
-			lastId = e.EventId
+			lastID = e.EventId
 			if e.Type != "m.room.message" {
 				continue
 			}
@@ -145,9 +147,9 @@ func sync(host string, sesh session, accPath string) string {
 			fmt.Println(file)
 		}
 		/* Send a read receipt. */
-		if lastId != "" {
-			url := "rooms/" + id + "/receipt/m.read/" + lastId + "?"
-			readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))
+		if lastID != "" {
+			url := "rooms/" + id + "/receipt/m.read/" + lastID + "?"
+			readBody(http.Post(apistr(host, url, sesh.Token), "application/json", nil))
 		}
 	}
 	return d.NextBatch
