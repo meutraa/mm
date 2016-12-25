@@ -52,11 +52,11 @@ GOOS=linux GOARCH=arm go build
 ls, tail, cat, find, and echo are your best friends.
 
 ```shell
-mm [-d dir] -s [scheme://]host[:port][/path] -u user -p password
+mm [-d dir] -s [scheme://]host[:port][/path] -u user -p password [-c path]
 
 Examples:
 mm -s matrix.org -u bob -p 1234
-mm -d "$HOME/chat/mm" -s http://localhost:8008 -u "$USER" -p pass
+mm -d "$HOME/chat/mm" -s http://localhost:8008 -u "$USER" -p pass -c "$HOME/chat/mm/cert.pem"
 ```
 
 Send message to room

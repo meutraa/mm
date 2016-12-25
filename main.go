@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -19,14 +21,16 @@ import (
 )
 
 const Json = "application/json"
+var client = &http.Client{}
 
 func main() {
 	usr, _ := user.Current()
-	var server, username, pass, accPath string
+	var server, username, pass, accPath, cert string
 	flag.StringVar(&server, "s", "", "homeserver url <https://matrix.org>")
 	flag.StringVar(&username, "u", "", "not full qualified username <bob>")
 	flag.StringVar(&pass, "p", "", "password <pass1234>")
 	flag.StringVar(&accPath, "d", usr.HomeDir+"/mm", "directory path")
+	flag.StringVar(&cert, "c", "", "certificate path")
 	flag.Parse()
 
 	host, err := url.Parse(server)
@@ -38,10 +42,22 @@ func main() {
 		host.Scheme = "https"
 	}
 
+	/* Self signed certificate */
+	rootPEM, _ := ioutil.ReadFile(cert)
+	if string(rootPEM) != "" {
+		roots := x509.NewCertPool()
+		ok := roots.AppendCertsFromPEM(rootPEM)
+		if ok {
+			client = &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots}}}
+		} else {
+			log.Println("failed to parse certificate:", cert)
+		}		
+	}
+
 	/* Account login and setup. */
 	var sesh session
 	b, _ := json.Marshal(auth{"m.login.password", username, pass})
-	body, _ := readBody(http.Post(host.String()+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
+	body, _ := readBody(client.Post(host.String()+"/_matrix/client/r0/login", Json, bytes.NewBuffer(b)))
 	json.Unmarshal(body, &sesh)
 	if sesh.Token == "" {
 		os.Exit(1)
@@ -63,7 +79,7 @@ func main() {
 	}
 
 	/* Revoke access_token. */
-	http.Post(apistr(host.String(), "logout?", sesh.Token), Json, nil)
+	defer client.Post(apistr(host.String(), "logout?", sesh.Token), Json, nil)
 }
 
 func apistr(host string, call string, token string) string {
@@ -83,7 +99,7 @@ func readPipe(pipe string, host string, token string) {
 		b, _ := json.Marshal(message{string(str), "m.text"})
 		url := "rooms/" + roomId + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
 		req, _ := http.NewRequest("PUT", apistr(host, url, token), bytes.NewBuffer(b))
-		readBody(http.DefaultClient.Do(req))
+		readBody(client.Do(req))
 	}
 }
 
@@ -92,7 +108,7 @@ func sync(host string, sesh session, accPath string) string {
 	if sesh.CurrentBatch != "" {
 		str += "since=" + sesh.CurrentBatch + "&timeout=30000&"
 	}
-	body, err:= readBody(http.Get(apistr(host, str, sesh.Token)))
+	body, err:= readBody(client.Get(apistr(host, str, sesh.Token)))
 	if err != nil {
 		time.Sleep(time.Second * 10)
 		return sesh.CurrentBatch
@@ -147,7 +163,7 @@ func sync(host string, sesh session, accPath string) string {
 		/* Send a read receipt. */
 		if lastId != "" {
 			url := "rooms/" + id + "/receipt/m.read/" + lastId + "?"
-			readBody(http.Post(apistr(host, url, sesh.Token), Json, nil))
+			readBody(client.Post(apistr(host, url, sesh.Token), Json, nil))
 		}
 	}
 	return d.NextBatch
