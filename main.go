@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"os/user"
 	"path"
 	"strconv"
@@ -57,16 +58,24 @@ func main() {
 	var sesh session
 	/* Empty get request to give time to ACK http2 settings. */
 	client.Get(host.String())
-	b, _ := json.Marshal(auth{"m.login.password", username, pass})
-	resp, err := client.Post(host.String()+"/_matrix/client/r0/login", "application/json", bytes.NewBuffer(b))
+	data, _ := json.Marshal(auth{"m.login.password", username, pass})
+	resp, err := client.Post(host.String()+"/_matrix/client/r0/login", "application/json", bytes.NewBuffer(data))
 	body, _ := readBody(resp, err)
 	json.Unmarshal(body, &sesh)
 	if sesh.Token == "" {
 		os.Exit(1)
 	}
 
-	/* Revoke access_token on exit. */
-	defer client.Post(host.String()+"/_matrix/client/r0/logout?access_token="+sesh.Token, "application/json", nil)
+	/* Logout on interrupt signal. */
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+	go func() {
+		for signal := range c {
+			log.Printf("%v: revoking access token for device "+sesh.DeviceId, signal)
+			client.Post(host.String()+"/_matrix/client/r0/logout?access_token="+sesh.Token, "application/json", nil)
+			os.Exit(1)
+		}
+	}()
 
 	accPath = path.Join(accPath, sesh.Homeserver, sesh.UserId)
 	os.MkdirAll(accPath, 0700)
