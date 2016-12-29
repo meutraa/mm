@@ -66,7 +66,7 @@ func main() {
 	}
 
 	/* Revoke access_token on exit. */
-	defer client.Post(apistr(host.String(), "logout?", sesh.Token), "application/json", nil)
+	defer client.Post(host.String()+"/_matrix/client/r0/logout?access_token="+sesh.Token, "application/json", nil)
 
 	accPath = path.Join(accPath, sesh.Homeserver, sesh.UserId)
 	os.MkdirAll(accPath, 0700)
@@ -85,10 +85,6 @@ func main() {
 	}
 }
 
-func apistr(host string, call string, token string) string {
-	return host + "/_matrix/client/r0/" + call + "access_token=" + token
-}
-
 func readPipe(pipe string, host string, token string) {
 	roomID := path.Base(path.Dir(pipe))
 	for {
@@ -99,19 +95,21 @@ func readPipe(pipe string, host string, token string) {
 		}
 
 		/* Send a message. */
-		b, _ := json.Marshal(message{string(str), "m.text"})
-		url := "rooms/" + roomID + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?"
-		req, _ := http.NewRequest("PUT", apistr(host, url, token), bytes.NewBuffer(b))
+		data, _ := json.Marshal(message{string(str), "m.text"})
+		url := host + "/_matrix/client/r0/" + "rooms/" + roomID + "/send/m.room.message/" + strconv.FormatInt(time.Now().UnixNano(), 10) + "?" + "access_token=" + token
+		req, _ := http.NewRequest("PUT", url, bytes.NewBuffer(data))
 		readBody(client.Do(req))
 	}
 }
 
 func sync(host string, sesh session, accPath string) string {
-	str := "sync?"
+	url := host + "/_matrix/client/r0/sync?"
 	if sesh.CurrentBatch != "" {
-		str += "since=" + sesh.CurrentBatch + "&timeout=30000&"
+		url += "since=" + sesh.CurrentBatch + "&timeout=30000&"
 	}
-	body, err := readBody(client.Get(apistr(host, str, sesh.Token)))
+	url += "access_token=" + sesh.Token
+
+	body, err := readBody(client.Get(url))
 	if err != nil {
 		time.Sleep(time.Second * 10)
 		return sesh.CurrentBatch
@@ -122,8 +120,8 @@ func sync(host string, sesh session, accPath string) string {
 		return sesh.CurrentBatch
 	}
 
-	for id, room := range d.Rooms.Join {
-		roomPath := path.Join(accPath, id)
+	for roomID, room := range d.Rooms.Join {
+		roomPath := path.Join(accPath, roomID)
 		os.Mkdir(roomPath, 0700)
 
 		pipe := path.Join(roomPath, "in")
@@ -132,6 +130,7 @@ func sync(host string, sesh session, accPath string) string {
 			syscall.Mkfifo(pipe, syscall.S_IFIFO|0600)
 			go readPipe(pipe, host, sesh.Token)
 		}
+
 		var lastID string
 		for _, e := range room.Timeline.Events {
 			lastID = e.EventId
@@ -139,37 +138,41 @@ func sync(host string, sesh session, accPath string) string {
 				continue
 			}
 			file := path.Join(roomPath, e.Sender, e.EventId)
-			os.Mkdir(path.Dir(file), 0700)
 
-			_, stat = os.Stat(file)
-			if os.IsExist(stat) {
-				continue
-			}
-			s := e.Content.Body
-			switch e.Content.Type {
-			case "m.image", "m.video", "m.file", "m.audio":
-				f := e.Content.FileInfo
-				s = host + "/_matrix/media/r0/download/" + strings.TrimPrefix(e.Content.Url, "mxc://") + " (" + f.MimeType
-				if e.Content.Type == "m.image" || e.Content.Type == "m.video" {
-					s += " " + strconv.Itoa(f.Height) + "x" + strconv.Itoa(f.Width)
-				}
-				s += " " + strconv.Itoa(f.Size>>10) + "KiB)"
-			case "m.location":
-				s += " " + e.Content.GeoUri
-			}
-			ioutil.WriteFile(file, []byte(s+"\n"), 0644)
-
-			t := time.Unix((e.Timestamp/1000)-5, 0)
-			os.Chtimes(file, t, t)
-			fmt.Println(file)
+			saveEvent(file, e, host)
 		}
 		/* Send a read receipt. */
 		if lastID != "" {
-			url := "rooms/" + id + "/receipt/m.read/" + lastID + "?"
-			readBody(client.Post(apistr(host, url, sesh.Token), "application/json", nil))
+			url := host + "/_matrix/client/r0/rooms/" + roomID + "/receipt/m.read/" + lastID + "?access_token=" + sesh.Token
+			readBody(client.Post(url, "application/json", nil))
 		}
 	}
 	return d.NextBatch
+}
+
+func saveEvent(file string, e event, host string) {
+	os.Mkdir(path.Dir(file), 0700)
+	_, stat := os.Stat(file)
+	if os.IsExist(stat) {
+		return
+	}
+	s := e.Content.Body
+	switch e.Content.Type {
+	case "m.image", "m.video", "m.file", "m.audio":
+		f := e.Content.FileInfo
+		s = host + "/_matrix/media/r0/download/" + strings.TrimPrefix(e.Content.Url, "mxc://") + " (" + f.MimeType
+		if e.Content.Type == "m.image" || e.Content.Type == "m.video" {
+			s += " " + strconv.Itoa(f.Height) + "x" + strconv.Itoa(f.Width)
+		}
+		s += " " + strconv.Itoa(f.Size>>10) + "KiB)"
+	case "m.location":
+		s += " " + e.Content.GeoUri
+	}
+	ioutil.WriteFile(file, []byte(s+"\n"), 0644)
+
+	t := time.Unix((e.Timestamp/1000)-5, 0)
+	os.Chtimes(file, t, t)
+	fmt.Println(file)
 }
 
 func readBody(res *http.Response, err error) ([]byte, error) {
@@ -177,7 +180,6 @@ func readBody(res *http.Response, err error) ([]byte, error) {
 		log.Println(err)
 		return []byte(""), err
 	}
-	/* Body always non-nil when err == nil. */
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil || res.StatusCode != 200 {
