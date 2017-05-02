@@ -1,12 +1,13 @@
 package main
 
 import (
-	"net/url"
 	"log"
-	"time"
-	"path"
-	"os"
 	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"runtime/debug"
+	"time"
 )
 
 type SyncResponse struct {
@@ -36,8 +37,8 @@ type event struct {
 }
 
 type content struct {
-	Body string `json:"body"`
-	Type string `json:"msgtype"`
+	Body     string `json:"body"`
+	Type     string `json:"msgtype"`
 	Name     string `json:"name"`
 	Url      string `json:"url"`
 	GeoUri   string `json:"geo_uri"`
@@ -57,9 +58,10 @@ func syncronize(host string, session LoginResponse, accPath string) {
 	/* After an error, wait 30s, otherwise sync again. */
 	defer func() {
 		if r := recover(); r != nil {
+			debug.PrintStack()
 			log.Println(recover())
 			time.Sleep(time.Second * 10)
-        	}
+		}
 	}()
 
 	u, err := url.Parse(host + syncAddress)
@@ -76,7 +78,6 @@ func syncronize(host string, session LoginResponse, accPath string) {
 
 	address := authenticate(u.String(), session.AccessToken)
 
-	log.Println("Syncing")
 	client := http.Client{}
 	client.Timeout = time.Second * 20
 	res, err := client.Get(address)
