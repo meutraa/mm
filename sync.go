@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -78,11 +77,13 @@ func syncronize(host string, session LoginResponse, accPath string) {
 
 	address := authenticate(u.String(), session.AccessToken)
 
-	client := http.Client{}
-	client.Timeout = time.Second * 20
-	res, err := client.Get(address)
-	if err != nil {
-		panic(err)
+	res, err := client().Get(address)
+	if nil != res {
+		defer res.Body.Close()
+	}
+
+	if nil != err {
+		panic(res.Status)
 	}
 	if 200 != res.StatusCode {
 		panic(res.Status)

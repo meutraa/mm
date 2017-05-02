@@ -4,22 +4,28 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"os/user"
 	"path"
-	"syscall"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
-	"net/http"
 )
 
-//var client = &http.Client{}
+//var client *http.Client
 var currentBatch string
 
 var pipeMutex = sync.Mutex{}
 var pipes = map[string]bool{}
+
+func client() *http.Client {
+	tr := &http.Transport{DisableKeepAlives: true}
+	c := &http.Client{Transport: tr, Timeout: time.Second * 20}
+	return c
+}
 
 func main() {
 	usr, err := user.Current()
@@ -41,22 +47,25 @@ func main() {
 	}
 
 	/* Self signed certificate */
-	//if "" != cert {
-	//	rootPEM, err := ioutil.ReadFile(cert)
-	//	if err != nil {
-	//		log.Println(err)
-	//	} else if len(rootPEM) > 0 {
-	//		roots := x509.NewCertPool()
-	//		if roots.AppendCertsFromPEM(rootPEM) {
-	//			client = &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots}}}
-	//		} else {
-	//			log.Println("failed to parse certificate:", cert)
-	//		}
-	//	}
-	//}
+	/*if "" != cert {
+		rootPEM, err := ioutil.ReadFile(cert)
+		if err != nil {
+			log.Println(err)
+		} else if len(rootPEM) > 0 {
+			roots := x509.NewCertPool()
+			if roots.AppendCertsFromPEM(rootPEM) {
+				client = &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots}}}
+			} else {
+				log.Println("failed to parse certificate:", cert)
+			}
+		}
+	}*/
 
-	http.Get(server)
-	//client.Timeout = time.Second * 15
+	/* This is a hack to give http2 servers time. */
+	/*res, err := client.Get(server)
+	if nil != res {
+		res.Body.Close()
+	}*/
 
 	session := login(server, username, pass)
 
