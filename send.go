@@ -3,8 +3,11 @@ package main
 import (
 	"strconv"
 	"time"
-	"log"
+	"sync"
 )
+
+var msgMutex = sync.Mutex{}
+var bufferedMessages = map[string]string{}
 
 type SendMessageRequest struct {
 	Type string `json:"msgtype"`
@@ -19,6 +22,16 @@ func sendMessage(host, roomId, message, accessToken string) {
 	address := authenticate(sendMessageAddress(host, roomId), accessToken)
 	res := PutJSON(address, SendMessageRequest{"m.text", message})
 	if 200 != res.StatusCode {
-		log.Println(res.Status)
+		panic(res.Status)
+	}
+
+	msgMutex.Lock()
+	delete(bufferedMessages, message)
+	msgMutex.Unlock()
+}
+
+func sendBufferedMessages(host, accessToken string) {
+	for message, roomId := range bufferedMessages {
+		go sendMessage(host, roomId, message, accessToken)
 	}
 }

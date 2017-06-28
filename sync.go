@@ -53,7 +53,7 @@ type info struct {
 
 var syncAddress = "/_matrix/client/r0/sync"
 
-func syncronize(host string, session LoginResponse, accPath string) {
+func synchronize(host string, session LoginResponse, accPath string) {
 	/* After an error, wait 30s, otherwise sync again. */
 	defer func() {
 		if r := recover(); r != nil {

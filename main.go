@@ -2,24 +2,17 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"os/user"
 	"path"
-	"strings"
-	"sync"
 	"syscall"
 	"time"
 )
 
 //var client *http.Client
 var currentBatch string
-
-var pipeMutex = sync.Mutex{}
-var pipes = map[string]bool{}
 
 func client() *http.Client {
 	tr := &http.Transport{DisableKeepAlives: true}
@@ -37,7 +30,7 @@ func main() {
 	flag.StringVar(&server, "s", "", "homeserver url <https://matrix.org>")
 	flag.StringVar(&username, "u", usr.Username, "not full qualified username <bob>")
 	flag.StringVar(&pass, "p", "", "password <pass1234>")
-	flag.StringVar(&accPath, "d", usr.HomeDir+"/mm", "directory path")
+	flag.StringVar(&accPath, "d", usr.HomeDir+"/.mm", "directory path")
 	flag.StringVar(&cert, "c", "", "certificate path")
 	flag.Parse()
 
@@ -61,12 +54,6 @@ func main() {
 		}
 	}*/
 
-	/* This is a hack to give http2 servers time. */
-	/*res, err := client.Get(server)
-	if nil != res {
-		res.Body.Close()
-	}*/
-
 	session := login(server, username, pass)
 
 	/* Logout on interrupt signal. */
@@ -83,54 +70,10 @@ func main() {
 	os.MkdirAll(accPath, 0700)
 
 	/* Start reading existing pipes for sending. */
-	rooms, err := ioutil.ReadDir(accPath)
-	if err != nil {
-		panic(err)
-	}
-
-	for _, v := range rooms {
-		if !strings.HasPrefix(v.Name(), "!") {
-			continue
-		}
-		pipe := path.Join(accPath, v.Name(), "in")
-		pipeMutex.Lock()
-		pipes[pipe] = true
-		pipeMutex.Unlock()
-		go readPipe(pipe, server, session.AccessToken)
-	}
+	watchPipes(accPath, server, session.AccessToken)
 
 	for {
-		syncronize(server, session, accPath)
-	}
-}
-
-func readPipe(pipe string, host string, token string) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Println(recover())
-			time.Sleep(time.Second * 10)
-		}
-	}()
-
-	pipeMutex.Lock()
-	if !pipes[pipe] {
-		if err := os.MkdirAll(path.Dir(pipe), 0700); err != nil {
-			panic(err)
-		}
-		if err := syscall.Mkfifo(pipe, syscall.S_IFIFO|0600); err != nil {
-			panic(err)
-		}
-		pipes[pipe] = true
-	}
-	pipeMutex.Unlock()
-
-	roomID := path.Base(path.Dir(pipe))
-	for {
-		str, err := ioutil.ReadFile(pipe)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		sendMessage(host, roomID, string(str), token)
+		//sendBufferedMessages(server, session.AccessToken)
+		synchronize(server, session, accPath)
 	}
 }
