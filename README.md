@@ -6,21 +6,10 @@ If you do not want a gitlab account but have problems or suggestions,
 send an email to my gmail address: bendypauldron
 
 ### Features
-* Less than 250 lines of code.
-* Fetching last ten messages of each room on start.
-* Receiving messages by long polling sync call.
+* Less than 200 lines of code.
 * Sending messages through named pipes.
-* Marking latest event as read (the recommendation to only mark this
-as read when the user has read the message seems iffy here. An IMAP type tagging
-system could work, but would be as complex as the program itself). At least
-this way, users of other clients will know your computer has recieved the
-message.
 * Online presence.
-* Message modification time set to message timestamp minus five seconds.
 * List of new messages (file paths) written to stdout
-
-###### Planned
-* Syncing all message history without gaps.
 
 ### Install (or update)
 ```shell
@@ -52,11 +41,12 @@ GOOS=linux GOARCH=arm go build
 ls, tail, cat, find, and echo are your best friends.
 
 ```shell
-mm [-d dir] -s [scheme://]host[:port][/path] -u user -p password [-c path]
+mm [-d dir] -s [scheme://]host[:port][/path] [-u user] -p password [-c path]
 
 Examples:
-mm -s matrix.org -u bob -p 1234
+mm -s matrix.org -p 1234 # Uses unix username.
 mm -d "$HOME/chat/mm" -s http://localhost:8008 -u "$USER" -p pass -c "$HOME/chat/mm/cert.pem"
+mm -s matrix.org -p 1234 2>> ~/.mm/log 1>> ~/.mm/out
 ```
 
 Send message to room

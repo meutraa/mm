@@ -1,13 +1,16 @@
 root/
   server/
-    account/
-      accesstoken
-      nextbatch
-      room/
-        user/
-          message/
-            message → string
-            receipt → 0 or 1 → whether the server has confirmed this message.
-            read → 0 or 1 → whether the user has read the message.
+    @account/
+      accesstoken ?
+      nextbatch   √
+      !room/
+        name
+        → in      √
+        @user/
+          name      √
+          avatar    √
+          $message
+          read        → eventId
+          typing      → 0/1       (self √, other ×)
 
-read for 3rd party messages will be an open pipe until
+* sending read receipts				}
