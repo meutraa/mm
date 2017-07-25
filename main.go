@@ -157,91 +157,85 @@ func createRooms(cli *gomatrix.Client, root string) {
 			continue
 		}
 
+		/* Read the input pipe and send messages. */
+		go readMessagePipe(cli, pipe, room)
+
 		/* Get a list of all joined members of this room. */
 		members, err := cli.JoinedMembers(room)
 		if nil != err {
 			log.Println("Unable to get members of room:", room, ":", err)
-		} else {
-			/* For each joined member of the room. */
-			for id, member := range members.Joined {
-				memberPath := path.Join(root, room, id)
+			return
+		}
 
-				/* Ensure the member directory exists. */
-				if err = os.MkdirAll(memberPath, 0700); nil != err {
-					log.Println("Unable to create member directory:", err)
-					continue
-				}
+		/* For each joined member of the room. */
+		for id, member := range members.Joined {
+			memberPath := path.Join(root, room, id)
 
-				/* If this user is yourself. */
-				if cli.UserID == id {
-					typingPipe := path.Join(memberPath, "typing")
-
-					/* Create the input pipe. */
-					if err = syscall.Mkfifo(typingPipe, syscall.S_IFIFO|0600); nil != err {
-						log.Println("Pipe error for:", room, err)
-					}
-
-					/* Read the typing pipe and send status. */
-					go readTypingPipe(cli, typingPipe, room)
-				}
-
-				/* Write the members display name to file. */
-				if nil != member.DisplayName && len(*(member.DisplayName)) > 0 {
-					if err2 := ioutil.WriteFile(path.Join(memberPath, "name"), []byte(*(member.DisplayName)), 0600); nil != err2 {
-						log.Println("Unable to write member name file:", err2)
-					}
-				}
-
-				/* Write the member's avartar url to file. */
-				if nil != member.AvatarURL && len(*(member.AvatarURL)) > 0 {
-					if err2 := ioutil.WriteFile(path.Join(memberPath, "avatar"), []byte(*(member.AvatarURL)), 0600); nil != err2 {
-						log.Println("Unable to write member avatar file:", err2)
-					}
-				}
+			/* Ensure the member directory exists. */
+			if err = os.MkdirAll(memberPath, 0700); nil != err {
+				log.Println("Unable to create member directory:", err)
+				continue
 			}
-		}
 
-		/* Create the input pipe. */
-		if err = syscall.Mkfifo(pipe, syscall.S_IFIFO|0600); nil != err {
-			log.Println("Pipe error for:", room, err)
-		}
+			/* If this user is yourself. */
+			if cli.UserID == id {
+				go readTypingPipe(cli, path.Join(memberPath, "typing"), room)
+			}
 
-		/* Read the input pipe and send messages. */
-		go readMessagePipe(cli, pipe, room)
+			/* Write the members display name and avatar to file. */
+			saveString(member.DisplayName, path.Join(memberPath, "name"))
+			saveString(member.AvatarURL, path.Join(memberPath, "avatar"))
+		}
+	}
+}
+
+func saveString(val *string, path string) {
+	if nil == val || len(*val) == 0 {
+		return
+	}
+	if err := ioutil.WriteFile(path, []byte(*val), 0600); nil != err {
+		log.Println("Unable to write string to file:", err)
 	}
 }
 
 /* Read a pipe and send messages to the client each new line. */
 func readMessagePipe(cli *gomatrix.Client, pipe, roomID string) {
+	readPipe(pipe, func(line string) {
+		if _, err := cli.SendText(roomID, line); nil != err {
+			log.Println("Failed to send message:", err)
+		}
+	})
+}
+
+func readPipe(pipe string, onLine func(line string)) {
+	_, err := os.Stat(pipe)
+	if os.IsNotExist(err) {
+		if err := syscall.Mkfifo(pipe, syscall.S_IFIFO|0600); nil != err {
+			log.Println("Failed to create pipe:", err)
+			return
+		}
+	}
+
 	for {
 		str, err := ioutil.ReadFile(pipe)
 		if err != nil {
-			log.Println(err)
+			log.Println("Failed to read pipe:", err)
 			continue
 		}
-
-		if _, err = cli.SendText(roomID, string(str)); nil != err {
-			log.Println("Failed to send message:", err)
-		}
+		onLine(string(str))
 	}
 }
 
 /* Read a pipe and send messages to the client each new line. */
 func readTypingPipe(cli *gomatrix.Client, pipe, roomID string) {
-	for {
-		str, err := ioutil.ReadFile(pipe)
-		if err != nil {
-			log.Println("Failed to read typing pipe:", err)
-			continue
-		}
-
+	readPipe(pipe, func(line string) {
 		var typing bool
-		if strings.TrimSpace(string(str)) == "1" {
+		if strings.TrimSpace(line) == "1" {
 			typing = true
 		}
 
-		if _, err = cli.UserTyping(roomID, typing, 15000); nil != err {
+		if _, err := cli.UserTyping(roomID, typing, 15000); nil != err {
 			log.Println("Failed to send typing status:", err)
 		}
-	}
+	})
 }
