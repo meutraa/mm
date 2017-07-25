@@ -15,61 +15,61 @@ import (
 	"github.com/matrix-org/gomatrix"
 )
 
-func assert(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 func main() {
 	usr, err := user.Current()
-	assert(err)
+	if nil != err {
+		log.Println("Unable to get current user:", err)
+		quit(nil, "")
+	}
 
-	var server, username, pass, root, cert string
-	flag.StringVar(&server, "s", "", "homeserver url <https://matrix.org>")
-	flag.StringVar(&username, "u", usr.Username, "not full qualified username <bob>")
-	flag.StringVar(&pass, "p", "", "password <pass1234>")
-	flag.StringVar(&root, "d", usr.HomeDir+"/.mm", "directory path")
-	flag.StringVar(&cert, "c", "", "certificate path")
+	/* Find the default data storage location. */
+	xdgdir := os.Getenv("XDG_DATA_HOME")
+	if "" == xdgdir {
+		xdgdir = path.Join(usr.HomeDir, ".local", "share", "mm")
+	}
+
+	var server, username, pass, root string
+	flag.StringVar(&server, "s", "https://matrix.org", "homeserver")
+	flag.StringVar(&username, "u", usr.Username, "username")
+	flag.StringVar(&pass, "p", "", "password")
+	flag.StringVar(&root, "d", xdgdir, "data storage directory")
 	flag.Parse()
 
-	if server == "" || pass == "" {
+	if pass == "" {
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
 
 	cli, err := gomatrix.NewClient(server, "", "")
-	assert(err)
+	if nil != err {
+		log.Println("Unable to create a new client:", err)
+		quit(cli, root)
+	}
 
 	resp, err := cli.Login(&gomatrix.ReqLogin{
 		Type:     "m.login.password",
 		User:     username,
 		Password: pass,
 	})
-	assert(err)
+	if nil != err {
+		log.Println("Unable to login:", err)
+		quit(cli, root)
+	}
 	cli.SetCredentials(resp.UserID, resp.AccessToken)
 
 	/* Change the root to the user account. */
 	root = path.Join(root, cli.HomeserverURL.Hostname(), cli.UserID)
 	if err = os.MkdirAll(root, 0700); nil != err {
 		log.Println("Unable to create account directory:", err)
-		return
+		quit(nil, root)
 	}
-
-	/* From now on Logout after panicking or returning. */
-	defer func() {
-		if r := recover(); nil != r {
-			log.Println(r)
-		}
-		logout(cli, root)
-	}()
 
 	/* Logout on interrupt signal. */
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
 	go func() {
 		for _ = range c {
-			logout(cli, root)
+			quit(cli, root)
 		}
 	}()
 
@@ -80,35 +80,64 @@ func main() {
 		cli.Store.SaveNextBatch(cli.UserID, string(nbBytes))
 	}
 
-	/* Create our syncer. */
-	syncer := cli.Syncer.(*gomatrix.DefaultSyncer)
-	syncer.OnEventType("m.room.message", func(ev *gomatrix.Event) {
-		/* Ensure the sender directory exists. */
-		msgPath := path.Join(root, ev.RoomID, ev.Sender, ev.ID)
-		if nil != os.MkdirAll(path.Dir(msgPath), os.ModeDir|0700) {
-			log.Println(err)
-			return
-		}
-
-		/* Parse the body of the message. */
-		msg, ok := ev.Body()
-		if !ok {
-			log.Println("Failed to parse body of eventID:", ev.ID)
-			return
-		}
-
-		/* Write the body to a file. */
-		if err = ioutil.WriteFile(msgPath, []byte(msg), 0600); nil != err {
-			log.Println("Failed to write message:", err)
-			return
-		}
-
-		/* Print the file path to stdout for clients. */
-		fmt.Println(msgPath)
-	})
+	/* Create our syncer. What will happen when we receive an event. */
+	cli.Syncer.(*gomatrix.DefaultSyncer).OnEventType(
+		"m.room.message", func(ev *gomatrix.Event) {
+			handleMessage(ev, root)
+		})
 
 	/* Sync loop. */
-	assert(cli.Sync())
+	err = cli.Sync()
+	if nil != err {
+		println("Sync loop exited:", err)
+	}
+
+	quit(cli, root)
+}
+
+func handleMessage(ev *gomatrix.Event, root string) {
+	/* Ensure the sender directory exists. */
+	msgPath := path.Join(root, ev.RoomID, ev.Sender, ev.ID)
+	if err := os.MkdirAll(path.Dir(msgPath), os.ModeDir|0700); nil != err {
+		log.Println("Failed to create message's directory:", err)
+		return
+	}
+
+	/* Parse the body of the message. */
+	msg, ok := ev.Body()
+	if !ok {
+		log.Println("Failed to parse body of eventID:", ev.ID)
+		return
+	}
+
+	/* Write the body to a file. */
+	if err := ioutil.WriteFile(msgPath, []byte(msg), 0600); nil != err {
+		log.Println("Failed to write message:", err)
+		return
+	}
+
+	/* Print the file path to stdout for clients. */
+	fmt.Println(msgPath)
+}
+
+func quit(cli *gomatrix.Client, root string) {
+	/* If the client has not connected yet, just quit. */
+	if nil == cli || "" == root {
+		os.Exit(0)
+	}
+
+	/* Write the nextbatch file. */
+	nextbatch := []byte(cli.Store.LoadNextBatch(cli.UserID))
+	if err := ioutil.WriteFile(path.Join(root, "nextbatch"), nextbatch, 0600); nil != err {
+		log.Println("Unable to save nextbatch file:", err)
+	}
+
+	/* Logout from the server. */
+	if _, err := cli.Logout(); nil != err {
+		log.Println(err)
+	}
+
+	os.Exit(0)
 }
 
 /* Get a list of joined rooms and set up a pipe for reading messages from. */
@@ -190,6 +219,7 @@ func readMessagePipe(cli *gomatrix.Client, pipe, roomID string) {
 			log.Println(err)
 			continue
 		}
+
 		if _, err = cli.SendText(roomID, string(str)); nil != err {
 			log.Println("Failed to send message:", err)
 		}
@@ -201,32 +231,17 @@ func readTypingPipe(cli *gomatrix.Client, pipe, roomID string) {
 	for {
 		str, err := ioutil.ReadFile(pipe)
 		if err != nil {
-			log.Println(err)
+			log.Println("Failed to read typing pipe:", err)
 			continue
 		}
+
 		var typing bool
 		if strings.TrimSpace(string(str)) == "1" {
 			typing = true
 		}
-		log.Println("Printing typing status:", roomID, typing)
+
 		if _, err = cli.UserTyping(roomID, typing, 15000); nil != err {
 			log.Println("Failed to send typing status:", err)
 		}
 	}
-}
-
-/* Write the nextbatch file, logout, and exit. */
-func logout(cli *gomatrix.Client, root string) {
-	nextbatch := []byte(cli.Store.LoadNextBatch(cli.UserID))
-
-	/* Write the nextbatch file. */
-	if err := ioutil.WriteFile(path.Join(root, "nextbatch"), nextbatch, 0600); nil != err {
-		log.Println("Unable to save nextbatch file:", err)
-	}
-
-	/* Logout from the server. */
-	if _, err := cli.Logout(); nil != err {
-		log.Println(err)
-	}
-	os.Exit(1)
 }

@@ -6,10 +6,10 @@ If you do not want a gitlab account but have problems or suggestions,
 send an email to my gmail address: bendypauldron
 
 ### Features
-* Less than 200 lines of code.
+* Less than 250 lines of code.
 * Sending messages through named pipes.
-* Online presence.
-* List of new messages (file paths) written to stdout
+* Online presence & typing notifications.
+* List of new messages (file paths) written to stdout.
 
 ### Install (or update)
 ```shell
@@ -30,8 +30,9 @@ GOOS=linux GOARCH=arm go build
 └── server.org
     └── @account1:server.org
         └─── !roomId:server.org
-            ├── in
+            ├─> in
             ├── @account1:server.org
+            │   ├─> typing
             │   └── $messageId:server.org
             └── @contact1:server.org
                 └── $messageId:server.org
@@ -41,12 +42,7 @@ GOOS=linux GOARCH=arm go build
 ls, tail, cat, find, and echo are your best friends.
 
 ```shell
-mm [-d dir] -s [scheme://]host[:port][/path] [-u user] -p password [-c path]
-
-Examples:
-mm -s matrix.org -p 1234 # Uses unix username.
-mm -d "$HOME/chat/mm" -s http://localhost:8008 -u "$USER" -p pass -c "$HOME/chat/mm/cert.pem"
-mm -s matrix.org -p 1234 2>> ~/.mm/log 1>> ~/.mm/out
+mm [-d dir] [-s [scheme://]host[:port][/path]] [-u user] -p password [-c path]
 ```
 
 Send message to room
@@ -55,7 +51,7 @@ echo "message" > in
 ```
 
 ## mchat
-This is a POSIX system mm client, the one I use.
+This is an example POSIX mm client.
 
 **Make sure to read and edit the config blocks.**
 ```shell
@@ -106,7 +102,7 @@ tail -n 0 -f "$MMOUT" | message
 ```
 
 ## dmmsg
-And here is a dmenu script to send messages. Obviously dmenu is not POSIX.
+And here is a dmenu script to send messages.
 ```shell
 #!/bin/sh
 
