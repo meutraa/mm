@@ -3,13 +3,12 @@ The [Matrix](https://matrix.org/) client that requires you to read to the bottom
 of this README.
 
 If you do not want a gitlab account but have problems or suggestions,
-send an email to my gmail address: bendypauldron
+send an email to git at lost dot host
 
 ### Features
-* Less than 250 lines of code.
+* Around 250 lines of code.
 * Sending messages through named pipes.
-* Online presence & typing notifications.
-* List of new messages (file paths) written to stdout.
+* Online presence & sending typing notifications.
 
 ### Install (or update)
 ```shell
@@ -51,7 +50,8 @@ echo "message" > in
 ```
 
 ## mchat
-This is an example POSIX mm client.
+This is an example POSIX mm client. For a much faster client,
+have a look at mm-client.
 
 **Make sure to read and edit the config blocks.**
 ```shell
