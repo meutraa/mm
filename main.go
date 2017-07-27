@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
@@ -18,10 +20,22 @@ import (
 	"github.com/matrix-org/gomatrix"
 )
 
+func xdgConfigDir(home string) string {
+	dir := os.Getenv("XDG_CONFIG_HOME")
+	if "" == dir {
+		dir = path.Join(home, ".config", "mm")
+	} else {
+		dir = path.Join(dir, "mm")
+	}
+	return dir
+}
+
 func xdgDataDir(home string) string {
 	dir := os.Getenv("XDG_DATA_HOME")
 	if "" == dir {
 		dir = path.Join(home, ".local", "share", "mm")
+	} else {
+		dir = path.Join(dir, "mm")
 	}
 	return dir
 }
@@ -33,11 +47,12 @@ func main() {
 		quit(nil)
 	}
 
-	var server, username, pass, root string
+	var server, username, pass, cert, root string
 	flag.StringVar(&server, "s", "https://matrix.org", "homeserver")
 	flag.StringVar(&username, "u", usr.Username, "username")
 	flag.StringVar(&pass, "p", "", "password")
 	flag.StringVar(&root, "d", xdgDataDir(usr.HomeDir), "data storage directory")
+	flag.StringVar(&cert, "c", path.Join(xdgConfigDir(usr.HomeDir), "cert.pem"), "certificate path")
 	flag.Parse()
 
 	cli, err := gomatrix.NewClient(server, "", "")
@@ -45,7 +60,7 @@ func main() {
 		log.Println("Unable to parse homeserver url:", err)
 		quit(cli)
 	}
-	cli.Client = createClient()
+	cli.Client = createClient(cert)
 
 	login(cli, username, pass)
 
@@ -78,13 +93,28 @@ func main() {
 	quit(cli)
 }
 
-func createClient() *http.Client {
+func createClient(cert string) *http.Client {
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   10 * time.Second,
+	}
+
+	/* Self signed certificate */
+	rootPEM, _ := ioutil.ReadFile(cert)
+	if string(rootPEM) != "" {
+		roots := x509.NewCertPool()
+		ok := roots.AppendCertsFromPEM(rootPEM)
+		if !ok {
+			log.Println("failed to parse certificate:", cert)
+		}
+		tr.TLSClientConfig = &tls.Config{
+			RootCAs: roots,
+		}
+	}
+
 	return &http.Client{
-		Transport: &http.Transport{
-			DisableKeepAlives: true,
-			IdleConnTimeout:   10 * time.Second,
-		},
-		Timeout: 10 * time.Second,
+		Transport: tr,
+		Timeout:   10 * time.Second,
 	}
 }
 
