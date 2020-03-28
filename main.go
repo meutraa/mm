@@ -55,6 +55,17 @@ func main() {
 	flag.StringVar(&cert, "c", path.Join(xdgConfigDir(usr.HomeDir), "cert.pem"), "certificate path")
 	flag.Parse()
 
+	/* Read password from file if requested. */
+	if strings.HasPrefix(pass, "@") {
+		passBytes, err := ioutil.ReadFile(strings.TrimPrefix(pass, "@"))
+		if nil != err {
+			log.Println("Unable to read password:", err)
+			quit(nil)
+		}
+		/* There is probably a trailing newline in that file. */
+		pass = strings.TrimSpace(string(passBytes))
+	}
+
 	cli, err := gomatrix.NewClient(server, "", "")
 	if nil != err {
 		log.Println("Unable to parse homeserver url:", err)

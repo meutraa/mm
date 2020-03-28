@@ -44,6 +44,11 @@ ls, tail, cat, find, and echo are your best friends.
 mm [-d dir] [-s [scheme://]host[:port][/path]] [-u user] -p password [-c path]
 ```
 
+To read password from file
+```shell
+mm -p @/path/to/password
+```
+
 Send message to room
 ```shell
 echo "message" > in
