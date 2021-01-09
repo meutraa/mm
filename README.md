@@ -1,10 +1,6 @@
-# mm (19311931)
+# mm
 
-The [Matrix](https://matrix.org/) client that requires you to read to the bottom
-of this README.
-
-If you do not want a gitlab account but have problems or suggestions,
-send an email to git at lost dot host
+The [Matrix](https://matrix.org/) client that requires you to read to the bottom of this README.
 
 ### Features
 
