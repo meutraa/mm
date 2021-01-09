@@ -1,150 +1,72 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
-	"os/signal"
-	"os/user"
 	"path"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/pkg/errors"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 )
 
-func xdgConfigDir(home string) string {
-	dir := os.Getenv("XDG_CONFIG_HOME")
-	if "" == dir {
-		dir = path.Join(home, ".config", "mm")
-	} else {
-		dir = path.Join(dir, "mm")
-	}
-	return dir
-}
-
-func xdgDataDir(home string) string {
-	dir := os.Getenv("XDG_DATA_HOME")
-	if "" == dir {
-		dir = path.Join(home, ".local", "share", "mm")
-	} else {
-		dir = path.Join(dir, "mm")
-	}
-	return dir
-}
-
 func main() {
-	usr, err := user.Current()
-	if nil != err {
-		log.Println("Unable to get current user:", err)
-		quit(nil)
+	if err := run(); nil != err {
+		log.Println(err)
+		os.Exit(1)
 	}
-
-	var server, username, pass, cert, root string
-	flag.StringVar(&server, "s", "https://matrix.org", "homeserver")
-	flag.StringVar(&username, "u", usr.Username, "username")
-	flag.StringVar(&pass, "p", "", "password")
-	flag.StringVar(&root, "d", xdgDataDir(usr.HomeDir), "data storage directory")
-	flag.StringVar(&cert, "c", path.Join(xdgConfigDir(usr.HomeDir), "cert.pem"), "certificate path")
-	flag.Parse()
-
-	/* Read password from file if requested. */
-	if strings.HasPrefix(pass, "@") {
-		passBytes, err := ioutil.ReadFile(strings.TrimPrefix(pass, "@"))
-		if nil != err {
-			log.Println("Unable to read password:", err)
-			quit(nil)
-		}
-		/* There is probably a trailing newline in that file. */
-		pass = strings.TrimSpace(string(passBytes))
-	}
-
-	cli, err := mautrix.NewClient(server, "", "")
-	if nil != err {
-		log.Println("Unable to parse homeserver url:", err)
-		quit(cli)
-	}
-	cli.Client = createClient(cert)
-
-	login(cli, username, pass)
-
-	/* Change the root to the user account. */
-	root = path.Join(root, cli.HomeserverURL.Hostname(), string(cli.UserID))
-
-	/* Logout on interrupt signal. */
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
-	go func() {
-		for range c {
-			quit(cli)
-		}
-	}()
-
-	go createRooms(cli, root)
-
-	/* Create our syncer. What will happen when we receive an event. */
-	cli.Syncer.(*mautrix.DefaultSyncer).OnEventType(
-		event.EventMessage, func(source mautrix.EventSource, ev *event.Event) {
-			handleMessage(ev, root)
-		})
-
-	/* Sync loop. */
-	err = cli.Sync()
-	if nil != err {
-		println("Sync loop exited:", err)
-	}
-
-	quit(cli)
+	os.Exit(0)
 }
 
-func createClient(cert string) *http.Client {
-	tr := &http.Transport{
-		DisableKeepAlives: true,
-		IdleConnTimeout:   10 * time.Second,
+func run() error {
+	client := &Client{}
+	if err := client.Initialize(); nil != err {
+		return err
 	}
 
-	/* Self signed certificate */
-	rootPEM, _ := ioutil.ReadFile(cert)
-	if string(rootPEM) != "" {
-		roots := x509.NewCertPool()
-		ok := roots.AppendCertsFromPEM(rootPEM)
+	// Test our access token, if 401, login
+	_, err := client.Matrix.Whoami()
+	if err != nil {
+		e, ok := err.(mautrix.HTTPError)
 		if !ok {
-			log.Println("failed to parse certificate:", cert)
+			return errors.Wrap(err, "unable to test credentials")
 		}
-		tr.TLSClientConfig = &tls.Config{
-			RootCAs: roots,
+		if e.Response.StatusCode == 401 {
+			if err := client.Login(); nil != err {
+				return errors.Wrap(err, "unable to login")
+			}
+		} else {
+			return errors.Wrap(err, "unable to test credentials")
 		}
 	}
 
-	return &http.Client{
-		Transport: tr,
-		Timeout:   10 * time.Second,
-	}
-}
+	// Change the filesystem root to the user account
+	client.AccountRoot = path.Join(
+		client.Config.Directory,
+		client.Matrix.HomeserverURL.Hostname(),
+		string(client.Matrix.UserID),
+	)
 
-func login(cli *mautrix.Client, user, pass string) {
-	resp, err := cli.Login(&mautrix.ReqLogin{
-		Type: "m.login.password",
-		Identifier: mautrix.UserIdentifier{
-			Type: mautrix.IdentifierTypeUser,
-			User: user,
+	go createRooms(client.Matrix, client.AccountRoot)
+
+	// Create our syncer. What will happen when we receive an event. */
+	client.Matrix.Syncer.(*mautrix.DefaultSyncer).OnEventType(
+		event.EventMessage, func(source mautrix.EventSource, ev *event.Event) {
+			handleMessage(ev, client.AccountRoot)
 		},
-		Password: pass,
-	})
-	if nil != err {
-		log.Println("Unable to login:", err)
-		quit(cli)
+	)
+
+	if err := client.Matrix.Sync(); nil != err {
+		return errors.Wrap(err, "sync loop exited")
 	}
-	cli.SetCredentials(resp.UserID, resp.AccessToken)
+
+	return nil
 }
 
 // This handles only MessageEventType events
@@ -171,20 +93,6 @@ func handleMessage(ev *event.Event, root string) {
 
 	/* Print the file path to stdout for clients. */
 	fmt.Println(file)
-}
-
-func quit(cli *mautrix.Client) {
-	/* If the client has not connected yet, just quit. */
-	if nil == cli {
-		os.Exit(0)
-	}
-
-	/* Logout from the server. */
-	if _, err := cli.Logout(); nil != err {
-		log.Println(err)
-	}
-
-	os.Exit(0)
 }
 
 func rooms(cli *mautrix.Client) []id.RoomID {
@@ -255,8 +163,7 @@ func ensureDir(dir string) error {
 		return nil
 	}
 	if err := os.MkdirAll(dir, os.ModeDir|0700); nil != err {
-		log.Println("Failed to create directory:", err)
-		return errors.New("Failed to create directory")
+		return errors.Wrap(err, "unable to create directory")
 	}
 	return nil
 }

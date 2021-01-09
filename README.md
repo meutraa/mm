@@ -8,7 +8,7 @@ send an email to git at lost dot host
 
 ### Features
 
-* Around 250 lines of code.
+* Around 400 lines of code.
 * Sending messages through named pipes.
 * Online presence & sending typing notifications.
 
