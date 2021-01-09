@@ -55,13 +55,7 @@ func run() error {
 
 	go createRooms(client.Matrix, client.AccountRoot)
 
-	// Create our syncer. What will happen when we receive an event. */
-	client.Matrix.Syncer.(*mautrix.DefaultSyncer).OnEventType(
-		event.EventMessage, func(source mautrix.EventSource, ev *event.Event) {
-			handleMessage(ev, client.AccountRoot)
-		},
-	)
-
+	client.Matrix.Syncer.(*mautrix.DefaultSyncer).OnEvent(client.onEvent)
 	if err := client.Matrix.Sync(); nil != err {
 		return errors.Wrap(err, "sync loop exited")
 	}
@@ -69,9 +63,46 @@ func run() error {
 	return nil
 }
 
+func (c *Client) onEvent(source mautrix.EventSource, ev *event.Event) {
+	switch ev.Type {
+	case event.EventMessage:
+		handleMessage(ev, c.AccountRoot)
+	// case event.EventEncrypted:
+		// c.handleEncrypted(ev)
+	}
+}
+
+// This handles only MessageEventType events
+/*func (c *Client) handleEncrypted(ev *event.Event) {
+	msg, ok := ev.Content.Parsed.(*event.EncryptedEventContent)
+	if !ok {
+		log.Println("unable to parse encrypted event")
+		return
+	}
+
+	senderID := msg.DeviceID
+	// senderKey := msg.SenderKey
+	// sessionID := msg.SessionID
+	// enc := msg.Ciphertext
+
+	res, err := c.Matrix.QueryKeys(&mautrix.ReqQueryKeys{
+		DeviceKeys: map[id.UserID]mautrix.DeviceIDList{
+			id.UserID(c.Config.Login.UserID): []id.DeviceID{
+				id.DeviceID(senderID),
+			},
+		},
+	})
+	if nil != err {
+		log.Println("unable to get device keys", err)
+		return
+	}
+
+	b, _ := json.Marshal(res)
+	log.Println("res: ", string(b))
+}*/
+
 // This handles only MessageEventType events
 func handleMessage(ev *event.Event, root string) {
-	/* Parse the body of the message. */
 	msg, ok := ev.Content.Parsed.(*event.MessageEventContent)
 	if !ok {
 		log.Printf("Received a normal message of type %T\n", ev.Content.Parsed)
@@ -85,13 +116,13 @@ func handleMessage(ev *event.Event, root string) {
 	)
 	writeString(msg.Body, file)
 
-	/* Set the creation time of the file to the timestamp of the server. */
+	// set the creation time of the file to the timestamp of the server
 	t := time.Unix(int64(ev.Timestamp/1000), 0)
 	if err := os.Chtimes(file, time.Now(), t); nil != err {
 		log.Println("Failed to set timestamp on message:", err)
 	}
 
-	/* Print the file path to stdout for clients. */
+	// print the file path to stdout for clients
 	fmt.Println(file)
 }
 
@@ -122,29 +153,29 @@ func forEachMember(cli *mautrix.Client, room id.RoomID, forMember func(id id.Use
 	}
 }
 
-/* Get a list of joined rooms and set up a pipe for reading messages from. */
+// get a list of joined rooms and set up a pipe for reading messages from
 func createRooms(cli *mautrix.Client, root string) {
 	for _, room := range rooms(cli) {
-		/* Read the input pipe and send messages. */
+		// read the input pipe and send messages
 		go readMessagePipe(cli, path.Join(root, room.String(), "in"), room.String())
 
-		/* For each joined member of the room. */
+		// for each joined member of the room
 		forEachMember(cli, room, func(id id.UserID, avatar, name string) {
 			memberPath := path.Join(root, room.String(), id.String())
 
-			/* If this user is yourself. */
+			// if this user is yourself
 			if cli.UserID == id {
 				go readTypingPipe(cli, path.Join(memberPath, "typing"), room.String())
 			}
 
-			/* Write the members display name and avatar to file. */
+			// write the members display name and avatar to file
 			writeString(name, root, room.String(), id.String(), "name")
 			writeString(avatar, root, room.String(), id.String(), "avatar")
 		})
 	}
 }
 
-/* Ensure the containing directory exists first, then write the file. */
+// ensure the containing directory exists first, then write the file
 func writeString(data string, elems ...string) {
 	p := path.Join(elems...)
 	if nil != ensureDir(p) {
@@ -168,7 +199,7 @@ func ensureDir(dir string) error {
 	return nil
 }
 
-/* Read a pipe and send messages to the client each new line. */
+// read a pipe and send messages to the client each new line
 func readMessagePipe(cli *mautrix.Client, pipe, roomID string) {
 	readPipe(pipe, func(line string) {
 		if _, err := cli.SendText(id.RoomID(roomID), line); nil != err {
@@ -200,7 +231,7 @@ func readPipe(pipe string, onLine func(line string)) {
 	}
 }
 
-/* Read a pipe and send messages to the client each new line. */
+// read a pipe and send messages to the client each new line
 func readTypingPipe(cli *mautrix.Client, pipe, roomID string) {
 	readPipe(pipe, func(line string) {
 		var typing bool

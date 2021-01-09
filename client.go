@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"git.lost.host/meutraa/mm/pkg/config"
+
 	"github.com/pkg/errors"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
@@ -14,16 +16,17 @@ import (
 
 type Client struct {
 	Matrix      *mautrix.Client
-	Config      *Config
-	ConfigFile  string
+	Config      *config.Config 
 	AccountRoot string
 }
 
 // Initialize configures the matrix client
 func (c *Client) Initialize() error {
-	if err := c.ParseConfig(); nil != err {
-		return errors.Wrap(err, "unable to parse config")
+	cfg, err := config.Load()
+	if nil != err {
+		return errors.Wrap(err, "unable to load config")
 	}
+	c.Config = cfg
 
 	cli, err := mautrix.NewClient(
 		c.Config.Server,
@@ -40,6 +43,20 @@ func (c *Client) Initialize() error {
 		return errors.Wrap(err, "unable to create http client")
 	}
 
+	// If the keys are not set in the config,
+	// create a new private/pubilc pair
+	/*if len(c.Config.Login.PublicKey) == 0 {
+		pub, priv, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return errors.Wrap(err, "unable to generate ed25519 key pair")
+		}
+		c.Config.Login.PublicKey = pub
+		c.Config.Login.PrivateKey = priv
+		if err := c.SaveConfig(); nil != err {
+			return errors.Wrap(err, "unable to save default config")
+		}
+	}*/
+
 	return nil
 }
 
@@ -51,7 +68,6 @@ func (c *Client) CreateHTTPClient() error {
 		IdleConnTimeout:   10 * time.Second,
 	}
 
-	/* Self signed certificate */
 	if c.Config.Certificate != "" {
 		rootPEM, err := ioutil.ReadFile(c.Config.Certificate)
 		if nil != err {
@@ -93,6 +109,8 @@ func (c *Client) Login() error {
 	c.Config.Login.UserID = resp.UserID.String()
 	c.Config.Login.DeviceID = resp.DeviceID.String()
 	c.Config.Login.AccessToken = resp.AccessToken
-	c.SaveConfig()
+	if err := c.Config.Save(); nil != err {
+		return errors.Wrap(err, "unable to save config")
+	}
 	return nil
 }
