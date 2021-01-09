@@ -43,13 +43,13 @@ GOOS=linux GOARCH=arm go build
 ls, tail, cat, find, and echo are your best friends.
 
 ```shell
-mm [-d dir] [-s [scheme://]host[:port][/path]] [-u user] -p password [-c path]
+Usage of mm:
+  -c string
+        mm configuration file (default "~/.config/mm/config.yml")
 ```
 
-To read password from file
-```shell
-mm -p @/path/to/password
-```
+First run will generate a configuration file for you. 
+Update the values and rerun.
 
 Send message to room
 ```shell
@@ -66,7 +66,7 @@ have a look at mm-client.
 #!/bin/sh
 # mm outputs all newly written messages to stdout. Write stdout to  a file and
 # set $MMOUT to that file and this script will print new messages.
-# mm -s https://server.org -u user -p pass 2>> ~/mm/log 1>> ~/mm/out &
+# mm 2>> ~/mm/log 1>> ~/mm/out &
 
 # START CONFIG
 MMOUT="$HOME/mm/out"
