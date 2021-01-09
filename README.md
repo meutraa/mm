@@ -1,4 +1,5 @@
 # mm (19311931)
+
 The [Matrix](https://matrix.org/) client that requires you to read to the bottom
 of this README.
 
@@ -6,16 +7,19 @@ If you do not want a gitlab account but have problems or suggestions,
 send an email to git at lost dot host
 
 ### Features
+
 * Around 250 lines of code.
 * Sending messages through named pipes.
 * Online presence & sending typing notifications.
 
 ### Install (or update)
+
 ```shell
 go get -u gitlab.com/meutraa/mm
 ```
 
 ##### Cross Compiling
+
 See https://golang.org/doc/install/source#environment for GOOS and GOARCH combinations.
 ```shell
 git clone git@gitlab.com:meutraa/mm.git
@@ -24,6 +28,7 @@ GOOS=linux GOARCH=arm go build
 ```
 
 ### Directory Structure
+
 ```
 .
 └── server.org
@@ -38,6 +43,7 @@ GOOS=linux GOARCH=arm go build
 ```
 
 ### Usage
+
 ls, tail, cat, find, and echo are your best friends.
 
 ```shell
@@ -55,6 +61,7 @@ echo "message" > in
 ```
 
 ## mchat
+
 This is an example POSIX mm client. For a much faster client,
 have a look at mm-client.
 
@@ -107,6 +114,7 @@ tail -n 0 -f "$MMOUT" | message
 ```
 
 ## dmmsg
+
 And here is a dmenu script to send messages.
 ```shell
 #!/bin/sh

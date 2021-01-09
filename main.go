@@ -17,7 +17,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/matrix-org/gomatrix"
+	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 func xdgConfigDir(home string) string {
@@ -66,7 +68,7 @@ func main() {
 		pass = strings.TrimSpace(string(passBytes))
 	}
 
-	cli, err := gomatrix.NewClient(server, "", "")
+	cli, err := mautrix.NewClient(server, "", "")
 	if nil != err {
 		log.Println("Unable to parse homeserver url:", err)
 		quit(cli)
@@ -76,13 +78,13 @@ func main() {
 	login(cli, username, pass)
 
 	/* Change the root to the user account. */
-	root = path.Join(root, cli.HomeserverURL.Hostname(), cli.UserID)
+	root = path.Join(root, cli.HomeserverURL.Hostname(), string(cli.UserID))
 
 	/* Logout on interrupt signal. */
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
 	go func() {
-		for _ = range c {
+		for range c {
 			quit(cli)
 		}
 	}()
@@ -90,8 +92,8 @@ func main() {
 	go createRooms(cli, root)
 
 	/* Create our syncer. What will happen when we receive an event. */
-	cli.Syncer.(*gomatrix.DefaultSyncer).OnEventType(
-		"m.room.message", func(ev *gomatrix.Event) {
+	cli.Syncer.(*mautrix.DefaultSyncer).OnEventType(
+		event.EventMessage, func(source mautrix.EventSource, ev *event.Event) {
 			handleMessage(ev, root)
 		})
 
@@ -129,10 +131,13 @@ func createClient(cert string) *http.Client {
 	}
 }
 
-func login(cli *gomatrix.Client, user, pass string) {
-	resp, err := cli.Login(&gomatrix.ReqLogin{
-		Type:     "m.login.password",
-		User:     user,
+func login(cli *mautrix.Client, user, pass string) {
+	resp, err := cli.Login(&mautrix.ReqLogin{
+		Type: "m.login.password",
+		Identifier: mautrix.UserIdentifier{
+			Type: mautrix.IdentifierTypeUser,
+			User: user,
+		},
 		Password: pass,
 	})
 	if nil != err {
@@ -142,16 +147,21 @@ func login(cli *gomatrix.Client, user, pass string) {
 	cli.SetCredentials(resp.UserID, resp.AccessToken)
 }
 
-func handleMessage(ev *gomatrix.Event, root string) {
+// This handles only MessageEventType events
+func handleMessage(ev *event.Event, root string) {
 	/* Parse the body of the message. */
-	msg, ok := ev.Body()
+	msg, ok := ev.Content.Parsed.(*event.MessageEventContent)
 	if !ok {
-		log.Println("Failed to parse body of eventID:", ev.ID)
+		log.Printf("Received a normal message of type %T\n", ev.Content.Parsed)
 		return
 	}
 
-	file := path.Join(root, ev.RoomID, ev.Sender, ev.ID)
-	writeString(msg, file)
+	file := path.Join(root,
+		ev.RoomID.String(),
+		ev.Sender.String(),
+		ev.ID.String(),
+	)
+	writeString(msg.Body, file)
 
 	/* Set the creation time of the file to the timestamp of the server. */
 	t := time.Unix(int64(ev.Timestamp/1000), 0)
@@ -160,10 +170,10 @@ func handleMessage(ev *gomatrix.Event, root string) {
 	}
 
 	/* Print the file path to stdout for clients. */
-	fmt.Println(path.Join(root, ev.RoomID, ev.Sender, ev.ID))
+	fmt.Println(file)
 }
 
-func quit(cli *gomatrix.Client) {
+func quit(cli *mautrix.Client) {
 	/* If the client has not connected yet, just quit. */
 	if nil == cli {
 		os.Exit(0)
@@ -177,16 +187,16 @@ func quit(cli *gomatrix.Client) {
 	os.Exit(0)
 }
 
-func rooms(cli *gomatrix.Client) []string {
+func rooms(cli *mautrix.Client) []id.RoomID {
 	rooms, err := cli.JoinedRooms()
 	if nil != err {
 		log.Println("Unable to get list of joined rooms:", err)
-		return []string{}
+		return []id.RoomID{}
 	}
 	return rooms.JoinedRooms
 }
 
-func forEachMember(cli *gomatrix.Client, room string, forMember func(id, avatar, name string)) {
+func forEachMember(cli *mautrix.Client, room id.RoomID, forMember func(id id.UserID, avatar, name string)) {
 	members, err := cli.JoinedMembers(room)
 	if nil != err {
 		log.Println("Unable to get members of room:", room, ":", err)
@@ -205,23 +215,23 @@ func forEachMember(cli *gomatrix.Client, room string, forMember func(id, avatar,
 }
 
 /* Get a list of joined rooms and set up a pipe for reading messages from. */
-func createRooms(cli *gomatrix.Client, root string) {
+func createRooms(cli *mautrix.Client, root string) {
 	for _, room := range rooms(cli) {
 		/* Read the input pipe and send messages. */
-		go readMessagePipe(cli, path.Join(root, room, "in"), room)
+		go readMessagePipe(cli, path.Join(root, room.String(), "in"), room.String())
 
 		/* For each joined member of the room. */
-		forEachMember(cli, room, func(id, avatar, name string) {
-			memberPath := path.Join(root, room, id)
+		forEachMember(cli, room, func(id id.UserID, avatar, name string) {
+			memberPath := path.Join(root, room.String(), id.String())
 
 			/* If this user is yourself. */
 			if cli.UserID == id {
-				go readTypingPipe(cli, path.Join(memberPath, "typing"), room)
+				go readTypingPipe(cli, path.Join(memberPath, "typing"), room.String())
 			}
 
 			/* Write the members display name and avatar to file. */
-			writeString(name, root, room, id, "name")
-			writeString(avatar, root, room, id, "avatar")
+			writeString(name, root, room.String(), id.String(), "name")
+			writeString(avatar, root, room.String(), id.String(), "avatar")
 		})
 	}
 }
@@ -252,9 +262,9 @@ func ensureDir(dir string) error {
 }
 
 /* Read a pipe and send messages to the client each new line. */
-func readMessagePipe(cli *gomatrix.Client, pipe, roomID string) {
+func readMessagePipe(cli *mautrix.Client, pipe, roomID string) {
 	readPipe(pipe, func(line string) {
-		if _, err := cli.SendText(roomID, line); nil != err {
+		if _, err := cli.SendText(id.RoomID(roomID), line); nil != err {
 			log.Println("Failed to send message:", err)
 		}
 	})
@@ -284,14 +294,14 @@ func readPipe(pipe string, onLine func(line string)) {
 }
 
 /* Read a pipe and send messages to the client each new line. */
-func readTypingPipe(cli *gomatrix.Client, pipe, roomID string) {
+func readTypingPipe(cli *mautrix.Client, pipe, roomID string) {
 	readPipe(pipe, func(line string) {
 		var typing bool
 		if strings.TrimSpace(line) == "1" {
 			typing = true
 		}
 
-		if _, err := cli.UserTyping(roomID, typing, 15000); nil != err {
+		if _, err := cli.UserTyping(id.RoomID(roomID), typing, 15000); nil != err {
 			log.Println("Failed to send typing status:", err)
 		}
 	})
