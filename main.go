@@ -37,7 +37,7 @@ func run() error {
 		if !ok {
 			return errors.Wrap(err, "unable to test credentials")
 		}
-		if e.Response.StatusCode == 401 {
+		if e.Response != nil && e.Response.StatusCode == 401 {
 			if err := client.Login(); nil != err {
 				return errors.Wrap(err, "unable to login")
 			}
